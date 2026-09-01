@@ -3,8 +3,6 @@
 // Ported from dotnet/aspnetcore, src/Http/WebUtilities/test/MultipartReaderTests.cs. The upstream
 // method names are kept so this file can be diffed against upstream when it grows a test.
 
-using System.Text;
-
 [TestFixture]
 public class MultipartReaderTests
 {
