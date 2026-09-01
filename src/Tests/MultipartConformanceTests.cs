@@ -88,6 +88,30 @@ public class MultipartConformanceTests
         Assert.That(await reader.ReadNextSectionAsync(), Is.Null);
     }
 
+    // The epilogue is drained rather than returned, but only up to HeadersLengthLimit: an endless one
+    // must not be pulled into memory on the way to reporting the end of the body. This is the only
+    // place the reader passes a limit to DrainAsync, and the short epilogue above is the other half of
+    // the pair.
+    [Test]
+    public async Task AnEpilogueBeyondTheHeadersLengthLimitIsRefused()
+    {
+        var reader = Read(
+            $"""
+            --test-boundary
+
+            data
+            --test-boundary--
+            {new string('e', 20_000)}
+
+            """);
+
+        var section = await ReadSection(reader);
+        Assert.That(await Body(section), Is.EqualTo("data"));
+
+        var exception = Assert.ThrowsAsync<InvalidDataException>(() => reader.ReadNextSectionAsync())!;
+        Assert.That(exception.Message, Is.EqualTo("The stream exceeded the data limit 16384."));
+    }
+
     [Test]
     public async Task BodyOfOnlyACloseDelimiterHasNoSections()
     {
