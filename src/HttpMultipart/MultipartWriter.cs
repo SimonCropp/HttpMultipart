@@ -20,11 +20,11 @@ using System.Threading.Tasks;
 /// </remarks>
 sealed class MultipartWriter
 {
-    readonly Stream body;
-    readonly byte[] firstDelimiter;
-    readonly byte[] delimiter;
-    readonly byte[] terminator;
-    readonly byte[] emptyTerminator;
+    Stream body;
+    byte[] firstDelimiter;
+    byte[] delimiter;
+    byte[] terminator;
+    byte[] emptyTerminator;
 
     // The last content type OpenPart was called with, and the complete opening bytes for it — the
     // delimiter and the headers together, since after the first part those never differ again.

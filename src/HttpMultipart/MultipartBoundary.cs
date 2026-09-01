@@ -9,7 +9,7 @@ using System.Text;
 
 sealed class MultipartBoundary
 {
-    readonly byte[] boundaryBytes;
+    byte[] boundaryBytes;
     bool expectLeadingCrlf;
 
     public MultipartBoundary(string boundary)

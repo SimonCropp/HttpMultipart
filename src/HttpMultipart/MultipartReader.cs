@@ -23,8 +23,8 @@ sealed class MultipartReader
 
     const int defaultBufferSize = 1024 * 4;
 
-    readonly BufferedReadStream stream;
-    readonly MultipartBoundary boundary;
+    BufferedReadStream stream;
+    MultipartBoundary boundary;
     MultipartReaderStream? currentStream;
 
     public MultipartReader(string boundary, Stream stream)

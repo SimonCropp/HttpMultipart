@@ -1,5 +1,3 @@
-using System.Net.Http.Headers;
-
 /// <summary>
 /// The examples the readme embeds. They are tests so the documentation cannot drift from the API.
 /// </summary>

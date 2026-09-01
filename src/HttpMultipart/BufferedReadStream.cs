@@ -20,9 +20,9 @@ sealed class BufferedReadStream :
     const byte cr = (byte)'\r';
     const byte lf = (byte)'\n';
 
-    readonly Stream inner;
-    readonly byte[] buffer;
-    readonly ArrayPool<byte> bytePool;
+    Stream inner;
+    byte[] buffer;
+    ArrayPool<byte> bytePool;
     int bufferOffset;
     int bufferCount;
     bool disposed;

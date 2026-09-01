@@ -1,5 +1,3 @@
-using System.Text;
-
 /// <summary>
 /// The framing the writer emits. It encodes the boundary once and caches the opening bytes of a
 /// repeated part type — a streaming caller opens one part per row — so what this pins is that the

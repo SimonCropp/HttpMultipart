@@ -11,7 +11,7 @@
 [TestFixture]
 public class MultipartConformanceTests
 {
-    const string Boundary = "test-boundary";
+    const string boundary = "test-boundary";
 
     [Test]
     public async Task EmptyPartBodyReadsAsEmpty()
@@ -132,7 +132,7 @@ public class MultipartConformanceTests
             --test-boundary--
 
             """.Crlf());
-        var reader = new MultipartReader(Boundary, stream, bufferSize: Boundary.Length + 8);
+        var reader = new MultipartReader(boundary, stream, bufferSize: boundary.Length + 8);
 
         var section = await ReadSection(reader);
         Assert.That(await Body(section), Is.EqualTo(content));
@@ -147,7 +147,7 @@ public class MultipartConformanceTests
     public void LineFeedOnlyDelimitersAreNotDelimiters()
     {
         var reader = new MultipartReader(
-            Boundary,
+            boundary,
             MakeStream(
                 """
                 --test-boundary
@@ -277,7 +277,7 @@ public class MultipartConformanceTests
     }
 
     static MultipartReader Read(string body) =>
-        new(Boundary, MakeStream(body.Crlf()));
+        new(boundary, MakeStream(body.Crlf()));
 
     static MemoryStream MakeStream(string text) =>
         new(Encoding.UTF8.GetBytes(text));

@@ -6,143 +6,147 @@
 [TestFixture]
 public class MultipartReaderTests
 {
-    const string Boundary = "9051914041544843365972754266";
-    const string BoundaryWithQuotes = @"""9051914041544843365972754266""";
+    const string boundary = "9051914041544843365972754266";
+
+    const string boundaryWithQuotes =
+        """
+        "9051914041544843365972754266"
+        """;
 
     // Transport padding, which is allowed after a delimiter and has to be trimmed. Named rather than
     // written as trailing whitespace inside the raw strings below, where trim_trailing_whitespace
     // would silently eat it.
-    const string OpenPadding = "             ";
-    const string ClosePadding = "   ";
+    const string openPadding = "             ";
+    const string closePadding = "   ";
 
     // Written with plain newlines and converted once by Crlf, since the delimiter is defined in terms
     // of CRLF. A body that ends at a delimiter has a blank line before the closing quotes; one that is
     // deliberately truncated, or left without its final CRLF, does not.
-    static readonly string OnePartBody =
+    static string onePartBody =
         """
-        --9051914041544843365972754266
-        Content-Disposition: form-data; name="text"
+            --9051914041544843365972754266
+            Content-Disposition: form-data; name="text"
 
-        text default
-        --9051914041544843365972754266--
+            text default
+            --9051914041544843365972754266--
 
-        """.Crlf();
+            """.Crlf();
 
-    static readonly string OnePartBodyTwoHeaders =
+    static string onePartBodyTwoHeaders =
         """
-        --9051914041544843365972754266
-        Content-Disposition: form-data; name="text"
-        Custom-header: custom-value
+            --9051914041544843365972754266
+            Content-Disposition: form-data; name="text"
+            Custom-header: custom-value
 
-        text default
-        --9051914041544843365972754266--
+            text default
+            --9051914041544843365972754266--
 
-        """.Crlf();
+            """.Crlf();
 
-    static readonly string OnePartBodyWithTrailingWhitespace =
+    static string onePartBodyWithTrailingWhitespace =
         $"""
-        --9051914041544843365972754266{OpenPadding}
-        Content-Disposition: form-data; name="text"
+             --9051914041544843365972754266{openPadding}
+             Content-Disposition: form-data; name="text"
 
-        text default
-        --9051914041544843365972754266--
+             text default
+             --9051914041544843365972754266--
 
-        """.Crlf();
+             """.Crlf();
 
     // Non-compliant, but common: the last CRLF is left off.
-    static readonly string OnePartBodyWithoutFinalCRLF =
+    static string onePartBodyWithoutFinalCrlf =
         """
-        --9051914041544843365972754266
-        Content-Disposition: form-data; name="text"
+            --9051914041544843365972754266
+            Content-Disposition: form-data; name="text"
 
-        text default
-        --9051914041544843365972754266--
-        """.Crlf();
+            text default
+            --9051914041544843365972754266--
+            """.Crlf();
 
-    static readonly string TwoPartBody =
+    static string twoPartBody =
         """
-        --9051914041544843365972754266
-        Content-Disposition: form-data; name="text"
+            --9051914041544843365972754266
+            Content-Disposition: form-data; name="text"
 
-        text default
-        --9051914041544843365972754266
-        Content-Disposition: form-data; name="file1"; filename="a.txt"
-        Content-Type: text/plain
+            text default
+            --9051914041544843365972754266
+            Content-Disposition: form-data; name="file1"; filename="a.txt"
+            Content-Type: text/plain
 
-        Content of a.txt.
+            Content of a.txt.
 
-        --9051914041544843365972754266--
+            --9051914041544843365972754266--
 
-        """.Crlf();
+            """.Crlf();
 
-    static readonly string TwoPartBodyWithUnicodeFileName =
+    static string twoPartBodyWithUnicodeFileName =
         """
-        --9051914041544843365972754266
-        Content-Disposition: form-data; name="text"
+            --9051914041544843365972754266
+            Content-Disposition: form-data; name="text"
 
-        text default
-        --9051914041544843365972754266
-        Content-Disposition: form-data; name="file1"; filename="a色.txt"
-        Content-Type: text/plain
+            text default
+            --9051914041544843365972754266
+            Content-Disposition: form-data; name="file1"; filename="a色.txt"
+            Content-Type: text/plain
 
-        Content of a.txt.
+            Content of a.txt.
 
-        --9051914041544843365972754266--
+            --9051914041544843365972754266--
 
-        """.Crlf();
+            """.Crlf();
 
-    static readonly string ThreePartBody =
+    static string threePartBody =
         """
-        --9051914041544843365972754266
-        Content-Disposition: form-data; name="text"
+            --9051914041544843365972754266
+            Content-Disposition: form-data; name="text"
 
-        text default
-        --9051914041544843365972754266
-        Content-Disposition: form-data; name="file1"; filename="a.txt"
-        Content-Type: text/plain
+            text default
+            --9051914041544843365972754266
+            Content-Disposition: form-data; name="file1"; filename="a.txt"
+            Content-Type: text/plain
 
-        Content of a.txt.
+            Content of a.txt.
 
-        --9051914041544843365972754266
-        Content-Disposition: form-data; name="file2"; filename="a.html"
-        Content-Type: text/html
+            --9051914041544843365972754266
+            Content-Disposition: form-data; name="file2"; filename="a.html"
+            Content-Type: text/html
 
-        <!DOCTYPE html><title>Content of a.html.</title>
+            <!DOCTYPE html><title>Content of a.html.</title>
 
-        --9051914041544843365972754266--
+            --9051914041544843365972754266--
 
-        """.Crlf();
+            """.Crlf();
 
     // Truncated mid-delimiter, so no trailing newline.
-    static readonly string TwoPartBodyIncompleteBuffer =
+    static string twoPartBodyIncompleteBuffer =
         """
-        --9051914041544843365972754266
-        Content-Disposition: form-data; name="text"
+            --9051914041544843365972754266
+            Content-Disposition: form-data; name="text"
 
-        text default
-        --9051914041544843365972754266
-        Content-Disposition: form-data; name="file1"; filename="a.txt"
-        Content-Type: text/plain
+            text default
+            --9051914041544843365972754266
+            Content-Disposition: form-data; name="file1"; filename="a.txt"
+            Content-Type: text/plain
 
-        Content of a.txt.
+            Content of a.txt.
 
-        --9051914041544843365
-        """.Crlf();
+            --9051914041544843365
+            """.Crlf();
 
-    static readonly string BoundaryWithGarbage =
+    static string boundaryWithGarbage =
         """
-        --9051914041544843365972754266
-        Content-Disposition: form-data; name="text"
+            --9051914041544843365972754266
+            Content-Disposition: form-data; name="text"
 
-        text default
-        --9051914041544843365972754266 garbage
+            text default
+            --9051914041544843365972754266 garbage
 
-        """.Crlf();
+            """.Crlf();
 
     [Test]
     public async Task MultipartReader_ReadSinglePartBody_Success()
     {
-        var reader = new MultipartReader(Boundary, MakeStream(OnePartBody));
+        var reader = new MultipartReader(boundary, MakeStream(onePartBody));
 
         var section = await ReadSection(reader);
         Assert.That(section.Headers, Has.Count.EqualTo(1));
@@ -155,7 +159,7 @@ public class MultipartReaderTests
     [Test]
     public void MultipartReader_HeaderCountExceeded_Throws()
     {
-        var reader = new MultipartReader(Boundary, MakeStream(OnePartBodyTwoHeaders))
+        var reader = new MultipartReader(boundary, MakeStream(onePartBodyTwoHeaders))
         {
             HeadersCountLimit = 1
         };
@@ -167,7 +171,7 @@ public class MultipartReaderTests
     [Test]
     public void MultipartReader_HeadersLengthExceeded_Throws()
     {
-        var reader = new MultipartReader(Boundary, MakeStream(OnePartBodyTwoHeaders))
+        var reader = new MultipartReader(boundary, MakeStream(onePartBodyTwoHeaders))
         {
             HeadersLengthLimit = 60
         };
@@ -184,10 +188,10 @@ public class MultipartReaderTests
     {
         var body =
             $"""
-            --9051914041544843365972754266
-            {new string('a', 100_000)}
-            """.Crlf();
-        var reader = new MultipartReader(Boundary, MakeStream(body));
+                 --9051914041544843365972754266
+                 {new string('a', 100_000)}
+                 """.Crlf();
+        var reader = new MultipartReader(boundary, MakeStream(body));
 
         var exception = Assert.ThrowsAsync<InvalidDataException>(() => reader.ReadNextSectionAsync())!;
         Assert.That(exception.Message, Is.EqualTo("Line length limit 16384 exceeded."));
@@ -198,14 +202,14 @@ public class MultipartReaderTests
     {
         var body =
             $"""
-            preamble {new string('a', 17000)}
-            --9051914041544843365972754266
+                 preamble {new string('a', 17000)}
+                 --9051914041544843365972754266
 
-            text default
-            --9051914041544843365972754266--
+                 text default
+                 --9051914041544843365972754266--
 
-            """.Crlf();
-        var reader = new MultipartReader(Boundary, MakeStream(body));
+                 """.Crlf();
+        var reader = new MultipartReader(boundary, MakeStream(body));
 
         var exception = Assert.ThrowsAsync<InvalidDataException>(() => reader.ReadNextSectionAsync())!;
         Assert.That(
@@ -218,14 +222,14 @@ public class MultipartReaderTests
     {
         var body =
             $"""
-            preamble {new string('a', 100_000)}
-            --9051914041544843365972754266
+                 preamble {new string('a', 100_000)}
+                 --9051914041544843365972754266
 
-            text default
-            --9051914041544843365972754266--
+                 text default
+                 --9051914041544843365972754266--
 
-            """.Crlf();
-        var reader = new MultipartReader(Boundary, MakeStream(body))
+                 """.Crlf();
+        var reader = new MultipartReader(boundary, MakeStream(body))
         {
             HeadersLengthLimit = 200_000
         };
@@ -237,7 +241,7 @@ public class MultipartReaderTests
     [Test]
     public async Task MultipartReader_ReadSinglePartBodyWithTrailingWhitespace_Success()
     {
-        var reader = new MultipartReader(Boundary, MakeStream(OnePartBodyWithTrailingWhitespace));
+        var reader = new MultipartReader(boundary, MakeStream(onePartBodyWithTrailingWhitespace));
 
         var section = await ReadSection(reader);
         Assert.That(section.Headers, Has.Count.EqualTo(1));
@@ -250,7 +254,7 @@ public class MultipartReaderTests
     [Test]
     public async Task MultipartReader_ReadSinglePartBodyWithoutLastCRLF_Success()
     {
-        var reader = new MultipartReader(Boundary, MakeStream(OnePartBodyWithoutFinalCRLF));
+        var reader = new MultipartReader(boundary, MakeStream(onePartBodyWithoutFinalCrlf));
 
         var section = await ReadSection(reader);
         Assert.That(section.Headers, Has.Count.EqualTo(1));
@@ -263,7 +267,7 @@ public class MultipartReaderTests
     [Test]
     public async Task MultipartReader_ReadTwoPartBody_Success()
     {
-        var reader = new MultipartReader(Boundary, MakeStream(TwoPartBody));
+        var reader = new MultipartReader(boundary, MakeStream(twoPartBody));
 
         var section = await ReadSection(reader);
         Assert.That(section.Headers, Has.Count.EqualTo(1));
@@ -282,7 +286,7 @@ public class MultipartReaderTests
     [Test]
     public async Task MultipartReader_ReadTwoPartBodyWithUnicodeFileName_Success()
     {
-        var reader = new MultipartReader(Boundary, MakeStream(TwoPartBodyWithUnicodeFileName));
+        var reader = new MultipartReader(boundary, MakeStream(twoPartBodyWithUnicodeFileName));
 
         var section = await ReadSection(reader);
         Assert.That(section.Headers, Has.Count.EqualTo(1));
@@ -303,7 +307,7 @@ public class MultipartReaderTests
     [Test]
     public async Task MultipartReader_ThreePartBody_Success()
     {
-        var reader = new MultipartReader(Boundary, MakeStream(ThreePartBody));
+        var reader = new MultipartReader(boundary, MakeStream(threePartBody));
 
         var section = await ReadSection(reader);
         Assert.That(section.Headers, Has.Count.EqualTo(1));
@@ -330,15 +334,15 @@ public class MultipartReaderTests
     [Test]
     public void MultipartReader_BufferSizeMustBeLargerThanBoundary_Throws()
     {
-        var stream = MakeStream(ThreePartBody);
+        var stream = MakeStream(threePartBody);
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => _ = new MultipartReader(Boundary, stream, 5));
+        Assert.Throws<ArgumentOutOfRangeException>(() => _ = new MultipartReader(boundary, stream, 5));
     }
 
     [Test]
     public async Task MultipartReader_ReadMultipartBodyWithFilesForDeferredCopy_Success()
     {
-        var reader = new MultipartReader(Boundary, MakeStream(ThreePartBody));
+        var reader = new MultipartReader(boundary, MakeStream(threePartBody));
 
         // Skip the text field section.
         await reader.ReadNextSectionAsync();
@@ -371,7 +375,7 @@ public class MultipartReaderTests
     [Test]
     public async Task MultipartReader_TwoPartBodyIncompleteBuffer_TwoSectionsReadSuccessfullyThirdSectionThrows()
     {
-        var reader = new MultipartReader(Boundary, MakeStream(TwoPartBodyIncompleteBuffer));
+        var reader = new MultipartReader(boundary, MakeStream(twoPartBodyIncompleteBuffer));
         var buffer = new byte[128];
 
         var section = await ReadSection(reader);
@@ -395,7 +399,7 @@ public class MultipartReaderTests
     [Test]
     public async Task MultipartReader_ReadInvalidUtf8Header_ReplacementCharacters()
     {
-        var reader = new MultipartReader(Boundary, MakeSplitHeaderStream([0xC1, 0x21]));
+        var reader = new MultipartReader(boundary, MakeSplitHeaderStream([0xC1, 0x21]));
 
         var section = await ReadSection(reader);
         Assert.That(section.Headers, Has.Count.EqualTo(1));
@@ -410,7 +414,7 @@ public class MultipartReaderTests
     [Test]
     public async Task MultipartReader_ReadInvalidUtf8SurrogateHeader_ReplacementCharacters()
     {
-        var reader = new MultipartReader(Boundary, MakeSplitHeaderStream([0xED, 0xA0, 85]));
+        var reader = new MultipartReader(boundary, MakeSplitHeaderStream([0xED, 0xA0, 85]));
 
         var section = await ReadSection(reader);
         Assert.That(section.Headers, Has.Count.EqualTo(1));
@@ -426,7 +430,7 @@ public class MultipartReaderTests
     [Test]
     public async Task MultipartReader_StripQuotesFromBoundary()
     {
-        var reader = new MultipartReader(BoundaryWithQuotes, MakeStream(OnePartBody));
+        var reader = new MultipartReader(boundaryWithQuotes, MakeStream(onePartBody));
 
         Assert.That(await reader.ReadNextSectionAsync(), Is.Not.Null);
     }
@@ -434,7 +438,7 @@ public class MultipartReaderTests
     [Test]
     public async Task SyncReadWithOffsetWorks()
     {
-        var reader = new MultipartReader(Boundary, MakeStream(OnePartBody));
+        var reader = new MultipartReader(boundary, MakeStream(onePartBody));
         var buffer = new byte[5];
 
         var section = await ReadSection(reader);
@@ -457,7 +461,7 @@ public class MultipartReaderTests
     [Test]
     public async Task MultipartReader_BoundaryWithUnexpectedTrailingData_ThrowsIOException()
     {
-        var reader = new MultipartReader(Boundary, MakeStream(BoundaryWithGarbage));
+        var reader = new MultipartReader(boundary, MakeStream(boundaryWithGarbage));
 
         var section = await ReadSection(reader);
 
@@ -468,7 +472,7 @@ public class MultipartReaderTests
     [Test]
     public async Task MultipartReader_BoundaryWithUnexpectedTrailingData_SyncRead_ThrowsIOException()
     {
-        var reader = new MultipartReader(Boundary, MakeStream(BoundaryWithGarbage));
+        var reader = new MultipartReader(boundary, MakeStream(boundaryWithGarbage));
 
         var section = await ReadSection(reader);
 
@@ -487,14 +491,14 @@ public class MultipartReaderTests
     {
         var body =
             $"""
-            --9051914041544843365972754266
-            Content-Disposition: form-data; name="text"
+                 --9051914041544843365972754266
+                 Content-Disposition: form-data; name="text"
 
-            text default
-            --9051914041544843365972754266--{ClosePadding}
+                 text default
+                 --9051914041544843365972754266--{closePadding}
 
-            """.Crlf();
-        var reader = new MultipartReader(Boundary, MakeStream(body));
+                 """.Crlf();
+        var reader = new MultipartReader(boundary, MakeStream(body));
 
         var section = await ReadSection(reader);
         Assert.That(await ReadBody(section), Is.EqualTo("text default"));
@@ -508,18 +512,18 @@ public class MultipartReaderTests
     {
         var body =
             """
-            --9051914041544843365972754266
-            Content-Disposition: form-data; name="text"
+                --9051914041544843365972754266
+                Content-Disposition: form-data; name="text"
 
-            text default
-            --9051914041544843365972754266 notwhitespace
-            Content-Disposition: form-data; name="text2"
+                text default
+                --9051914041544843365972754266 notwhitespace
+                Content-Disposition: form-data; name="text2"
 
-            text2
-            --9051914041544843365972754266--
+                text2
+                --9051914041544843365972754266--
 
-            """.Crlf();
-        var reader = new MultipartReader(Boundary, MakeStream(body));
+                """.Crlf();
+        var reader = new MultipartReader(boundary, MakeStream(body));
 
         var section = await ReadSection(reader);
 
@@ -535,17 +539,17 @@ public class MultipartReaderTests
         // The two halves meet mid-header-value, so neither carries the newline at the splice.
         var before =
             """
-            --9051914041544843365972754266
-            Content-Disposition: form-data; name="text" filename="a
-            """.Crlf();
+                --9051914041544843365972754266
+                Content-Disposition: form-data; name="text" filename="a
+                """.Crlf();
         var after =
             """
-            .txt"
+                .txt"
 
-            text default
-            --9051914041544843365972754266--
+                text default
+                --9051914041544843365972754266--
 
-            """.Crlf();
+                """.Crlf();
 
         var stream = new MemoryStream();
         stream.Write(Encoding.UTF8.GetBytes(before));

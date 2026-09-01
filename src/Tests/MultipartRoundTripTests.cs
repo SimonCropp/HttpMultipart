@@ -1,5 +1,3 @@
-using System.Text;
-
 /// <summary>
 /// The writer's output fed straight back through the reader. Neither implementation this package draws
 /// on has this test, and it is the one that pins the two halves against each other: the writer's rule

@@ -14,11 +14,11 @@ using System.Threading.Tasks;
 sealed class MultipartReaderStream :
     Stream
 {
-    readonly MultipartBoundary boundary;
-    readonly BufferedReadStream innerStream;
-    readonly ArrayPool<byte> bytePool;
+    MultipartBoundary boundary;
+    BufferedReadStream innerStream;
+    ArrayPool<byte> bytePool;
 
-    readonly long innerOffset;
+    long innerOffset;
     long position;
     long observedLength;
     bool finished;
