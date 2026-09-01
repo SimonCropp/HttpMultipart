@@ -13,10 +13,6 @@
          would compile against usings a consumer does not have, and the omission would only surface
          once the package was published. -->
     <PackageReference Include="ProjectDefaults" PrivateAssets="all" ExcludeAssets="contentFiles" />
-    <!-- ProjectDefaults also injects these aliases. Removing them forces the shipped sources to spell
-         CancellationToken, since a consumer will not have the alias either. -->
-    <Using Remove="System.Threading.CancellationToken" />
-    <Using Remove="System.Threading.CancellationTokenSource" />
     <!-- The files that ship. Globbed without recursion so nothing generated under obj can reach the
          package. -->
     <PackSource Include="$(MSBuildProjectDirectory)/*.cs" />

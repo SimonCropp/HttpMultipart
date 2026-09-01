@@ -131,17 +131,17 @@ sealed class BufferedReadStream :
     public override void Flush() =>
         inner.Flush();
 
-    public override Task FlushAsync(CancellationToken cancel) =>
-        inner.FlushAsync(cancel);
+    public override Task FlushAsync(CancellationToken cancellationToken) =>
+        inner.FlushAsync(cancellationToken);
 
     public override void Write(byte[] buffer, int offset, int count) =>
         inner.Write(buffer, offset, count);
 
-    public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancel) =>
-        inner.WriteAsync(buffer, cancel);
+    public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken) =>
+        inner.WriteAsync(buffer, cancellationToken);
 
-    public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancel) =>
-        inner.WriteAsync(buffer, offset, count, cancel);
+    public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+        inner.WriteAsync(buffer, offset, count, cancellationToken);
 
     public override int Read(byte[] buffer, int offset, int count)
     {
@@ -160,10 +160,10 @@ sealed class BufferedReadStream :
         return inner.Read(buffer, offset, count);
     }
 
-    public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancel) =>
-        ReadAsync(buffer.AsMemory(offset, count), cancel).AsTask();
+    public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+        ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
 
-    public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancel)
+    public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken)
     {
         // Drain buffer.
         if (bufferCount > 0)
@@ -175,7 +175,7 @@ sealed class BufferedReadStream :
             return toCopy;
         }
 
-        return await inner.ReadAsync(buffer, cancel);
+        return await inner.ReadAsync(buffer, cancellationToken);
     }
 
     /// <summary>Ensures that the buffer is not empty.</summary>
