@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Below the package's floor. Building this must fail with HttpMultipartTargetFramework rather
+         than with "the type or namespace HttpMultipart could not be found". -->
+    <TargetFramework>net9.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <OutputType>Exe</OutputType>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <CheckEolTargetFramework>false</CheckEolTargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="HttpMultipart" Version="*-*" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

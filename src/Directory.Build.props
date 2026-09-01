@@ -1,0 +1,26 @@
+<Project>
+  <PropertyGroup>
+    <NoWarn>CS1591;NU1608;NU1109</NoWarn>
+    <Version>0.1.0</Version>
+    <AssemblyVersion>1.0.0</AssemblyVersion>
+    <LangVersion>14.0</LangVersion>
+    <!-- Space separated, not semicolon: this is passed through NuspecProperties, which is itself
+         semicolon delimited. -->
+    <PackageTags>multipart mime http source-only</PackageTags>
+    <Description>Source only package for reading and writing HTTP multipart content.</Description>
+    <!-- Off so the shipped sources must spell every using explicitly. A consumer with implicit usings
+         disabled compiles them just the same, and this is what mechanically proves it. -->
+    <ImplicitUsings>false</ImplicitUsings>
+    <DisableImplicitNamespaceImports>true</DisableImplicitNamespaceImports>
+    <Nullable>enable</Nullable>
+    <!-- The compiled assembly is never packed, so there is nothing to sign. -->
+    <SignAssembly>false</SignAssembly>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- Audit the full transitive dependency graph. Combined with TreatWarningsAsErrors this fails
+         the build on any package vulnerability advisory (e.g. NU1903). -->
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <ResolveAssemblyReferencesSilent>true</ResolveAssemblyReferencesSilent>
+    <SuppressNETCoreSdkPreviewMessage>true</SuppressNETCoreSdkPreviewMessage>
+  </PropertyGroup>
+</Project>

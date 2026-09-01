@@ -1,0 +1,45 @@
+name: release
+on:
+  push:
+    tags: ['*']
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Lets the job mint the OIDC token nuget.org trades for a short-lived publishing key.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      # The tag is the version: tag 1.2.3 (or v1.2.3) publishes 1.2.3. The Version in
+      # Directory.Build.props is only what local builds get.
+      - name: Resolve the version from the tag
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+      - name: Build
+        run: dotnet build src/HttpMultipart.slnx -c Release -p:Version=${{ env.version }}
+      - name: Test
+        run: dotnet test src/HttpMultipart.slnx -c Release --no-build
+      # Given the same version, so this does not leave a second package in nugets/ for the push to find.
+      - name: Verify the package
+        run: pwsh src/verify-package.ps1 -Version ${{ env.version }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: nugets/*.nupkg
+      # Trusted publishing: no stored API key. nuget.org validates GitHub's OIDC token against the
+      # policy naming this repository and this workflow file, and returns a key good for an hour —
+      # so this stays immediately before the push.
+      - name: NuGet login
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+      - name: Push to nuget.org
+        run: >
+          dotnet nuget push nugets/*.nupkg
+          --api-key ${{ steps.login.outputs.NUGET_API_KEY }}
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicate

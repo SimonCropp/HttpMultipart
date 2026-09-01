@@ -1,0 +1,21 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Build
+        run: dotnet build src/HttpMultipart.slnx -c Release
+      - name: Test
+        run: dotnet test src/HttpMultipart.slnx -c Release --no-build
+      # The solution build never exercises the nuspec: Tests links the sources directly. This packs and
+      # then builds the Consume projects against the real nupkg.
+      - name: Verify the package
+        run: pwsh src/verify-package.ps1

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+  <ItemGroup>
+    <!-- Keep the injected sources out of the consumer's Solution Explorer. -->
+    <Compile Update="@(Compile)">
+      <Visible Condition="%(NuGetItemType) == 'Compile' and
+                          %(NuGetPackageId) == 'HttpMultipart'">false</Visible>
+    </Compile>
+  </ItemGroup>
+
+  <!-- contentFiles/cs/net10.0/ yields nothing at all on an older target framework, which would
+       otherwise surface as "the type or namespace HttpMultipart could not be found". -->
+  <Target Name="HttpMultipartValidateTargetFramework" BeforeTargets="CoreCompile">
+    <Error Code="HttpMultipartTargetFramework"
+           Condition="'$(TargetFramework)' != '' and !$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net10.0'))"
+           Text="HttpMultipart requires net10.0 or later. The project targets $(TargetFramework)." />
+  </Target>
+</Project>

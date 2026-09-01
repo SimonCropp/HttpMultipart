@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+  <!-- The types live in the HttpMultipart namespace so they cannot silently shadow
+       Microsoft.AspNetCore.WebUtilities.MultipartReader in an ASP.NET Core consumer. This makes them
+       reachable without a using directive anyway, where the consumer has implicit usings on. -->
+  <ItemGroup Condition="$(Language) == 'C#' and ($(ImplicitUsings) == 'enable' or $(ImplicitUsings) == 'true')">
+    <Using Include="HttpMultipart" />
+  </ItemGroup>
+</Project>

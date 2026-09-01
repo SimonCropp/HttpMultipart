@@ -1,0 +1,9 @@
+{
+  "$schema": "https://raw.githubusercontent.com/SimonCropp/MarkdownSnippets/main/schema.json",
+  "Convention": "InPlaceOverwrite",
+  "ExcludeDirectories": [
+    "Consume",
+    "ConsumeNoImplicitUsings",
+    "ConsumeOldTfm"
+  ]
+}

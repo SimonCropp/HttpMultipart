@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <!-- The ordinary consumer shape: implicit usings on, which is what makes the package's shipped
+         global using apply. The Consume projects cover the other shapes. -->
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Linked rather than package-referenced so a test run needs no pack step. The package's own
+         props and targets are imported below, so the consumer's MSBuild logic runs here too. -->
+    <Compile Include="..\HttpMultipart\*.cs" LinkBase="HttpMultipart" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="ProjectDefaults" PrivateAssets="all" />
+    <!-- Merges the snippets marked with #region in Usage.cs into readme.md. Building this project
+         regenerates the snippet regions there. -->
+    <PackageReference Include="MarkdownSnippets.MsBuild" PrivateAssets="all" />
+    <Using Include="NUnit.Framework" />
+  </ItemGroup>
+  <Import Project="..\HttpMultipart\build\HttpMultipart.props" />
+  <Import Project="..\HttpMultipart\build\HttpMultipart.targets" />
+</Project>

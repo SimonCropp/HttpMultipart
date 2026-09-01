@@ -1,0 +1,249 @@
+using System.Text;
+
+/// <summary>
+/// RFC 2046 edge cases the ported aspnetcore tests do not reach, and the two places this reader
+/// deliberately differs from upstream. The payloads are written from the RFC rather than lifted from
+/// another implementation's suite.
+/// </summary>
+[TestFixture]
+public class MultipartConformanceTests
+{
+    const string Boundary = "test-boundary";
+
+    [Test]
+    public async Task EmptyPartBodyReadsAsEmpty()
+    {
+        var reader = Read(
+            "--test-boundary\r\n" +
+            "Content-Type: text/plain\r\n" +
+            "\r\n" +
+            "\r\n" +
+            "--test-boundary--\r\n");
+
+        var section = await ReadSection(reader);
+        Assert.That(section.ContentType, Is.EqualTo("text/plain"));
+        Assert.That(await Body(section), Is.Empty);
+
+        Assert.That(await reader.ReadNextSectionAsync(), Is.Null);
+    }
+
+    [Test]
+    public async Task PartWithNoHeadersIsRead()
+    {
+        var reader = Read(
+            "--test-boundary\r\n" +
+            "\r\n" +
+            "data\r\n" +
+            "--test-boundary--\r\n");
+
+        var section = await ReadSection(reader);
+        Assert.That(section.Headers, Is.Empty);
+        Assert.That(await Body(section), Is.EqualTo("data"));
+    }
+
+    // "There appears to be room for additional information prior to the first boundary delimiter line
+    // [...] this 'preamble' area should generally be left blank" — and, either way, discarded.
+    [Test]
+    public async Task PreambleIsDiscarded()
+    {
+        var reader = Read(
+            "this is a preamble a reader must ignore\r\n" +
+            "--test-boundary\r\n" +
+            "\r\n" +
+            "data\r\n" +
+            "--test-boundary--\r\n");
+
+        var section = await ReadSection(reader);
+        Assert.That(await Body(section), Is.EqualTo("data"));
+    }
+
+    [Test]
+    public async Task EpilogueAfterTheCloseDelimiterIsDiscarded()
+    {
+        var reader = Read(
+            "--test-boundary\r\n" +
+            "\r\n" +
+            "data\r\n" +
+            "--test-boundary--\r\n" +
+            "this is an epilogue a reader must ignore\r\n");
+
+        var section = await ReadSection(reader);
+        Assert.That(await Body(section), Is.EqualTo("data"));
+
+        Assert.That(await reader.ReadNextSectionAsync(), Is.Null);
+    }
+
+    [Test]
+    public async Task BodyOfOnlyACloseDelimiterHasNoSections()
+    {
+        var reader = Read("--test-boundary--\r\n");
+
+        Assert.That(await reader.ReadNextSectionAsync(), Is.Null);
+    }
+
+    // A delimiter is only a delimiter at the start of a line. The same characters mid-line are content,
+    // which is what the reader's partial-match scan exists to get right.
+    [Test]
+    public async Task BoundaryTextMidLineIsContent()
+    {
+        var reader = Read(
+            "--test-boundary\r\n" +
+            "\r\n" +
+            "text--test-boundary more\r\n" +
+            "--test-boundary--\r\n");
+
+        var section = await ReadSection(reader);
+        Assert.That(await Body(section), Is.EqualTo("text--test-boundary more"));
+    }
+
+    // With a buffer this small the body spans many refills and the delimiter itself straddles one, so
+    // the read has to carry a partial match across the boundary of its own buffer.
+    [Test]
+    public async Task ContentSpanningManyBufferRefillsIsReadWhole()
+    {
+        var content = new string('x', 500);
+        var stream = MakeStream(
+            "--test-boundary\r\n" +
+            "\r\n" +
+            content + "\r\n" +
+            "--test-boundary--\r\n");
+        var reader = new MultipartReader(Boundary, stream, bufferSize: Boundary.Length + 8);
+
+        var section = await ReadSection(reader);
+        Assert.That(await Body(section), Is.EqualTo(content));
+
+        Assert.That(await reader.ReadNextSectionAsync(), Is.Null);
+    }
+
+    // The delimiter is defined in terms of CRLF. A body using bare LF has no delimiter line at all, and
+    // the trailing content is reported rather than silently treated as a part.
+    [Test]
+    public void LineFeedOnlyDelimitersAreNotDelimiters()
+    {
+        var reader = Read(
+            "--test-boundary\n" +
+            "\n" +
+            "data\n" +
+            "--test-boundary--\n");
+
+        Assert.ThrowsAsync<IOException>(() => reader.ReadNextSectionAsync());
+    }
+
+    [Test]
+    public async Task HeaderNamesAreCaseInsensitive()
+    {
+        var reader = Read(
+            "--test-boundary\r\n" +
+            "content-TYPE: text/plain\r\n" +
+            "\r\n" +
+            "data\r\n" +
+            "--test-boundary--\r\n");
+
+        var section = await ReadSection(reader);
+        Assert.That(section.ContentType, Is.EqualTo("text/plain"));
+        Assert.That(section.Headers!["Content-Type"], Is.EqualTo("text/plain"));
+    }
+
+    // Where aspnetcore accumulates a repeated header into a StringValues, this reader keeps headers
+    // single-valued and takes the last. Pinned because it is a deliberate difference, not an accident.
+    [Test]
+    public async Task ARepeatedHeaderNameIsLastWins()
+    {
+        var reader = Read(
+            "--test-boundary\r\n" +
+            "X-Custom: one\r\n" +
+            "X-Custom: two\r\n" +
+            "\r\n" +
+            "data\r\n" +
+            "--test-boundary--\r\n");
+
+        var section = await ReadSection(reader);
+        Assert.That(section.Headers, Has.Count.EqualTo(1));
+        Assert.That(section.Headers!["X-Custom"], Is.EqualTo("two"));
+    }
+
+    [Test]
+    public async Task ContentLengthIsReadFromTheHeader()
+    {
+        var reader = Read(
+            "--test-boundary\r\n" +
+            "Content-Length: 4\r\n" +
+            "\r\n" +
+            "data\r\n" +
+            "--test-boundary--\r\n");
+
+        var section = await ReadSection(reader);
+        Assert.That(section.ContentLength, Is.EqualTo(4));
+    }
+
+    [TestCase("not-a-number")]
+    [TestCase("-1")]
+    public async Task AnUnusableContentLengthIsNull(string value)
+    {
+        var reader = Read(
+            "--test-boundary\r\n" +
+            $"Content-Length: {value}\r\n" +
+            "\r\n" +
+            "data\r\n" +
+            "--test-boundary--\r\n");
+
+        var section = await ReadSection(reader);
+        Assert.That(section.ContentLength, Is.Null);
+    }
+
+    // Not covered upstream: the per-section body limit the transport cannot enforce for the caller.
+    [Test]
+    public async Task BodyLengthLimitIsEnforced()
+    {
+        var reader = Read(
+            "--test-boundary\r\n" +
+            "\r\n" +
+            "text default\r\n" +
+            "--test-boundary--\r\n");
+        reader.BodyLengthLimit = 5;
+
+        var section = await ReadSection(reader);
+
+        var exception = Assert.ThrowsAsync<InvalidDataException>(
+            () => section.Body.CopyToAsync(new MemoryStream()))!;
+        Assert.That(exception.Message, Is.EqualTo("Multipart body length limit 5 exceeded."));
+    }
+
+    // RFC 2046 allows 70 characters from a set wider than the hex most senders use.
+    [Test]
+    public async Task ABoundaryOfMaximumLengthAndCharacterSetIsRead()
+    {
+        var boundary = "0'()+_,-./:=?abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234";
+        Assert.That(boundary, Has.Length.EqualTo(70));
+
+        var stream = MakeStream(
+            $"--{boundary}\r\n" +
+            "\r\n" +
+            "data\r\n" +
+            $"--{boundary}--\r\n");
+        var reader = new MultipartReader(boundary, stream);
+
+        var section = await ReadSection(reader);
+        Assert.That(await Body(section), Is.EqualTo("data"));
+    }
+
+    static MultipartReader Read(string body) =>
+        new(Boundary, MakeStream(body));
+
+    static MemoryStream MakeStream(string text) =>
+        new(Encoding.UTF8.GetBytes(text));
+
+    static async Task<MultipartSection> ReadSection(MultipartReader reader)
+    {
+        var section = await reader.ReadNextSectionAsync();
+        Assert.That(section, Is.Not.Null);
+        return section!;
+    }
+
+    static async Task<string> Body(MultipartSection section)
+    {
+        var buffer = new MemoryStream();
+        await section.Body.CopyToAsync(buffer);
+        return Encoding.UTF8.GetString(buffer.ToArray());
+    }
+}

@@ -1,0 +1,8 @@
+[Bb]in/
+[Oo]bj/
+nugets/
+packages/
+.vs/
+*.user
+*.received.*
+consume-packages/
