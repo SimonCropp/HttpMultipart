@@ -2,8 +2,6 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // Ported from dotnet/aspnetcore, src/Http/WebUtilities/test/BufferedReadStreamTests.cs.
 
-using System.Text;
-
 [TestFixture]
 public class BufferedReadStreamTests
 {
@@ -12,7 +10,7 @@ public class BufferedReadStreamTests
     {
         var stream = MakeStream("hello world\r\n", bufferSize: 4096);
 
-        var line = await stream.ReadLineAsync(lengthLimit: 100, CancellationToken.None);
+        var line = await stream.ReadLineAsync(lengthLimit: 100, Cancel.None);
 
         Assert.That(line, Is.EqualTo("hello world"));
     }
@@ -23,7 +21,7 @@ public class BufferedReadStreamTests
         var content = new string('a', 100);
         var stream = MakeStream(content + "\r\n", bufferSize: 16);
 
-        var line = await stream.ReadLineAsync(lengthLimit: 1000, CancellationToken.None);
+        var line = await stream.ReadLineAsync(lengthLimit: 1000, Cancel.None);
 
         Assert.That(line, Is.EqualTo(content));
     }
@@ -36,7 +34,7 @@ public class BufferedReadStreamTests
         var stream = MakeStream(new string('a', 100) + "\r\n", bufferSize: 16);
 
         var exception = Assert.ThrowsAsync<InvalidDataException>(
-            () => stream.ReadLineAsync(lengthLimit: 40, CancellationToken.None))!;
+            () => stream.ReadLineAsync(lengthLimit: 40, Cancel.None))!;
         Assert.That(exception.Message, Is.EqualTo("Line length limit 40 exceeded."));
     }
 
@@ -45,10 +43,10 @@ public class BufferedReadStreamTests
     [Test]
     public void ReadLineAsync_UnterminatedLineExceedingLimit_ThrowsInsteadOfAccumulating()
     {
-        var stream = MakeStream(new string('a', 100_000), bufferSize: 1024 * 4);
+        var stream = MakeStream(new('a', 100_000), bufferSize: 1024 * 4);
 
         var exception = Assert.ThrowsAsync<InvalidDataException>(
-            () => stream.ReadLineAsync(lengthLimit: 1024 * 16, CancellationToken.None))!;
+            () => stream.ReadLineAsync(lengthLimit: 1024 * 16, Cancel.None))!;
         Assert.That(exception.Message, Is.EqualTo("Line length limit 16384 exceeded."));
     }
 

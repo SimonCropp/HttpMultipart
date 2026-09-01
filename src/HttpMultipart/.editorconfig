@@ -1,0 +1,7 @@
+root = false
+
+[*.cs]
+# ProjectDefaults declares the Cancel alias for CancellationToken and inspects for its use, but this
+# project removes the alias: these files ship as source and a consumer will not have it. Spelling the
+# type in full is required here, so the suggestion is wrong for this folder only.
+resharper_use_symbol_alias_highlighting = none

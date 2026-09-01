@@ -1,6 +1,4 @@
-using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Text;
 
 /// <summary>
 /// The examples the readme embeds. They are tests so the documentation cannot drift from the API.
@@ -28,7 +26,7 @@ public class Usage
 
         #endregion
 
-        Assert.That(parts, Is.EqualTo(new[] {"first", "second"}));
+        Assert.That(parts, Is.EqualTo(["first", "second"]));
     }
 
     [Test]

@@ -53,7 +53,7 @@ if (response.Content.TryGetMultipartBoundary(out var boundary))
     }
 }
 ```
-<sup><a href='/src/Tests/Usage.cs#L16-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-read' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Tests/Usage.cs#L14-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-read' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 `ReadNextSectionAsync` is forward-only, and a section's `Body` is valid only until the next section is
@@ -78,7 +78,7 @@ while (await reader.ReadNextSectionAsync() is {} section)
     Handle(section.ContentType, bytes);
 }
 ```
-<sup><a href='/src/Tests/Usage.cs#L39-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-readBinary' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Tests/Usage.cs#L37-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-readBinary' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -112,7 +112,7 @@ await writer.WritePart("application/octet-stream", new byte[] {1, 2, 3});
 
 await writer.Terminate();
 ```
-<sup><a href='/src/Tests/Usage.cs#L64-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-write' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Tests/Usage.cs#L62-L77' title='Snippet source file'>snippet source</a> | <a href='#snippet-write' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The delimiter's leading CRLF is written by the *next* part, or by the terminator — which is what keeps

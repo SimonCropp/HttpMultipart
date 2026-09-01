@@ -1,5 +1,3 @@
-using System.Text;
-
 /// <summary>
 /// RFC 2046 edge cases the ported aspnetcore tests do not reach, and the two places this reader
 /// deliberately differs from upstream. The payloads are written from the RFC rather than lifted from

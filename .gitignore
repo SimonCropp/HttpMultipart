@@ -6,3 +6,4 @@ packages/
 *.user
 *.received.*
 consume-packages/
+/src/.idea
