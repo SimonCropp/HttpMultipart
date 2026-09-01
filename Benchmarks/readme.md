@@ -37,7 +37,7 @@ machine-specific; the ratios are the point.
 Streaming is flat at 7.5 KB whatever the part size. Buffering to a byte array costs about **2.7× the
 part** — the grown buffer and the returned array are alive at once — and to a string about **4×**,
 since the content is transcoded to UTF-16 and then copied out of the builder. Neither helper is wrong;
-they are for parts you know are small, and this is the price of using one when you don't.
+they are for parts known to be small, and this is the price of using one on a part that is not.
 
 ### Buffer size and disposal — 16 MB part, `ReadBenchmarks`
 

@@ -1,6 +1,3 @@
-/// <summary>
-/// The examples the readme embeds. They are tests so the documentation cannot drift from the API.
-/// </summary>
 [TestFixture]
 public class Usage
 {

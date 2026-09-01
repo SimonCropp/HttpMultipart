@@ -20,14 +20,15 @@ Requires `net10.0` or later.
 <PackageReference Include="HttpMultipart" Version="*" PrivateAssets="all" />
 ```
 
-`PrivateAssets="all"` keeps the package out of the dependency graph of anything that references your
-project. The source is already compiled into your assembly, so there is nothing to flow onwards.
+`PrivateAssets="all"` keeps the package out of the dependency graph of anything that references the
+consuming project. The source is already compiled into that assembly, so there is nothing to flow
+onwards.
 
 
 ## Namespace
 
 The types live in the `HttpMultipart` namespace, and the package adds a global `using` for it wherever
-the consuming project has implicit usings enabled. If it does not, add the using yourself:
+the consuming project has implicit usings enabled. If it does not, add the using explicitly:
 
 ```csharp
 using HttpMultipart;
@@ -58,11 +59,11 @@ if (response.Content.TryGetMultipartBoundary(out var boundary))
 <!-- endSnippet -->
 
 `ReadNextSectionAsync` is forward-only, and a section's `Body` is valid only until the next section is
-read. Read or copy what you need before moving on.
+read. Read or copy the content before moving on.
 
 For binary parts, `ReadAsBytesAsync` buffers the whole part. It uses `Content-Length` to size the
 initial buffer — capped, since the header comes from the part itself — and never trusts it for the
-read. See [Large payloads](#large-payloads) before using it on anything unbounded:
+read. See [Large payloads](#large-payloads) before applying it to anything unbounded:
 
 <!-- snippet: readBinary -->
 <a id='snippet-readBinary'></a>
@@ -93,11 +94,11 @@ while (await reader.ReadNextSectionAsync() is {} section)
 | `BodyLengthLimit` | **none** | Bytes in any one section body |
 
 Exceeding a limit throws `InvalidDataException`. The transport is responsible for bounding the overall
-body length; these bound what one section can cost you.
+body length; these bound what one section can cost.
 
 `BodyLengthLimit` defaulting to no limit matches `Microsoft.AspNetCore.WebUtilities`, and costs nothing
-while you stream a section — but **set it before reading untrusted input**, because it is the only
-thing bounding a part you then buffer. Two things it does not bound: the number of sections, and the
+while a section is streamed — but **set it before reading untrusted input**, because it is the only
+thing bounding a part that is then buffered. Two things it does not bound: the number of sections, and the
 combined header size in *bytes* rather than UTF-16 chars, which multi-byte header values can push to
 roughly three times `HeadersLengthLimit`.
 
@@ -147,7 +148,7 @@ await writer.Terminate();
 
 `OpenPart(contentType, contentLength)` is the same thing split in two, for a caller who wants to write
 the content itself rather than hand over a `Stream`. The length is advisory in both — nothing verifies
-you write exactly that many bytes.
+that exactly that many bytes are written.
 
 
 ## API
@@ -167,9 +168,9 @@ you write exactly that many bytes.
 
 The reader streams. `section.Body` is forward-only over a fixed buffer, so copying a part costs the
 same whether it is 64 KB or 4 MB — measured at **7.5 KB allocated, either way**. That is the path to
-use for anything you have not bounded.
+use for anything unbounded.
 
-The two helpers buffer, and are for parts you know are small. Against streaming the same 4 MB part:
+The two helpers buffer, and are for parts known to be small. Against streaming the same 4 MB part:
 
 | | Time | Allocated |
 | --- | --- | --- |
@@ -180,22 +181,22 @@ The two helpers buffer, and are for parts you know are small. Against streaming 
 Buffering to bytes costs roughly 2.7× the part, and to a string roughly 4×.
 
 **Set `BodyLengthLimit` before reading untrusted input.** It defaults to no limit, and it is the only
-thing bounding a part you go on to buffer. `Content-Length` is not that thing: it is advisory, it sizes
+thing bounding a part that goes on to be buffered. `Content-Length` is not that thing: it is advisory, it sizes
 the initial buffer and is capped, and it is never trusted for a read.
 
 **Dispose the reader.** It rents its read buffer from `ArrayPool`, and disposing is what returns it —
 without that, every reader allocates a fresh one. Disposing takes a 16 MB read from 6.9 KB allocated to
-**2.88 KB, flat at any buffer size**. It leaves the stream you handed it open, and it ends the life of
-every section it produced, so do it after the last one is read. Skipping it is safe and is what the
-upstream shape does; it just costs an allocation per reader.
+**2.88 KB, flat at any buffer size**. It leaves the caller's stream open, and it ends the life of
+every section it produced, so dispose after the last one is read. Skipping it is safe and is what the
+upstream shape does; it costs an allocation per reader.
 
-**Leave `bufferSize` alone if you copy with `CopyToAsync`.** A 16 MB part takes 1.2 ms at the 4 KB
-default and 56 ms at 1 MB, because `CopyToAsync` reads in 4 KB whatever you set: the base
+**Leave `bufferSize` alone when copying with `CopyToAsync`.** A 16 MB part takes 1.2 ms at the 4 KB
+default and 56 ms at 1 MB, because `CopyToAsync` reads in 4 KB whatever the configured size: the base
 implementation asks for a buffer of 1 byte when a seekable stream reports a length at or below its
 position, which a section always does before its first read, so the override floors it at 4 KB. A
 larger internal buffer then buys nothing and costs cache.
 
-**Read with your own buffer if you want a larger one to pay off.** The same 16 MB part through a
+**Read with a caller-supplied buffer for a larger one to pay off.** The same 16 MB part through a
 256 KB read buffer over a 1 MB internal buffer takes 1.4 ms, and a read only scans as far as it could
 return, so the boundary search does not repeat over what it could not hand back.
 

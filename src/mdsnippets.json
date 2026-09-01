@@ -1,6 +1,10 @@
 {
   "$schema": "https://raw.githubusercontent.com/SimonCropp/MarkdownSnippets/main/schema.json",
   "Convention": "InPlaceOverwrite",
+  "ValidateContent": true,
+  "ExcludeMarkdownFiles": [
+    "claude.md"
+  ],
   "ExcludeDirectories": [
     "Consume",
     "ConsumeNoImplicitUsings",
