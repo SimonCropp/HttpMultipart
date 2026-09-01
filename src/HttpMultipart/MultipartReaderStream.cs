@@ -223,6 +223,7 @@ sealed class MultipartReaderStream :
             // "The boundary may be followed by zero or more characters of linear whitespace. It is
             // then terminated by either another CRLF" or -- for the final boundary.
             var boundary = stream.bytePool.Rent(length);
+            // ReSharper disable once RedundantAssignment
             var read = stream.innerStream.Read(boundary, 0, length);
             stream.bytePool.Return(boundary);
             // It should have all been buffered.
@@ -311,6 +312,7 @@ sealed class MultipartReaderStream :
             // "The boundary may be followed by zero or more characters of linear whitespace. It is
             // then terminated by either another CRLF" or -- for the final boundary.
             var boundary = stream.bytePool.Rent(length);
+            // ReSharper disable once RedundantAssignment
             var read = await stream.innerStream.ReadAsync(boundary, 0, length, cancellationToken);
             stream.bytePool.Return(boundary);
             // It should have all been buffered.

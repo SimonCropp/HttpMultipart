@@ -14,6 +14,8 @@
     <PackageReference Include="NUnit" />
     <PackageReference Include="NUnit3TestAdapter" />
     <PackageReference Include="ProjectDefaults" PrivateAssets="all" />
+    <Using Remove="System.Threading.CancellationToken" />
+    <Using Remove="System.Threading.CancellationTokenSource" />
     <!-- Merges the snippets marked with #region in Usage.cs into readme.md. Building this project
          regenerates the snippet regions there. -->
     <PackageReference Include="MarkdownSnippets.MsBuild" PrivateAssets="all" />

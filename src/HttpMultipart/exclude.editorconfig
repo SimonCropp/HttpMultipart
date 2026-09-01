@@ -1,2 +1,5 @@
 # exclude code from dotnet format https://github.com/dotnet/sdk/issues/38906
+# The nuspec ships this as the package's own root .editorconfig. Deliberately not named
+# .editorconfig here: that would overwrite this folder's real one, and root = true would cut the
+# shipped sources off from the repo-root config.
 root = true

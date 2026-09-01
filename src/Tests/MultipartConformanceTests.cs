@@ -199,6 +199,7 @@ public class MultipartConformanceTests
         var read = new MemoryStream();
         var buffer = new byte[97];
         int count;
+        // ReSharper disable once MethodHasAsyncOverload
         while ((count = section.Body.Read(buffer, 0, buffer.Length)) > 0)
         {
             read.Write(buffer, 0, count);

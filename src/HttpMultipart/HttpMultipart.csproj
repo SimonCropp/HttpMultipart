@@ -16,6 +16,8 @@
     <!-- The files that ship. Globbed without recursion so nothing generated under obj can reach the
          package. -->
     <PackSource Include="$(MSBuildProjectDirectory)/*.cs" />
+    <Using Remove="System.Threading.CancellationToken" />
+    <Using Remove="System.Threading.CancellationTokenSource" />
   </ItemGroup>
 
   <!-- _GetOutputItemsFromPack also reads NuspecProperties to resolve the package id/version out of the

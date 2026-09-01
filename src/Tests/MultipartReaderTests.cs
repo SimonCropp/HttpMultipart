@@ -381,6 +381,7 @@ public class MultipartReaderTests
         var section = await ReadSection(reader);
         Assert.That(section.Headers, Has.Count.EqualTo(1));
         Assert.That(section.ContentDisposition, Is.EqualTo("form-data; name=\"text\""));
+        // ReSharper disable once MethodHasAsyncOverload
         var read = section.Body.Read(buffer, 0, buffer.Length);
         Assert.That(GetString(buffer, read), Is.EqualTo("text default"));
 
@@ -389,6 +390,7 @@ public class MultipartReaderTests
         Assert.That(section.Headers, Has.Count.EqualTo(2));
         Assert.That(section.ContentDisposition, Is.EqualTo("form-data; name=\"file1\"; filename=\"a.txt\""));
         Assert.That(section.ContentType, Is.EqualTo("text/plain"));
+        // ReSharper disable once MethodHasAsyncOverload
         read = section.Body.Read(buffer, 0, buffer.Length);
         Assert.That(GetString(buffer, read), Is.EqualTo("Content of a.txt.\r\n"));
 
@@ -445,12 +447,15 @@ public class MultipartReaderTests
         Assert.That(section.Headers, Has.Count.EqualTo(1));
         Assert.That(section.ContentDisposition, Is.EqualTo("form-data; name=\"text\""));
 
+        // ReSharper disable once MethodHasAsyncOverload
         var read = section.Body.Read(buffer, 2, buffer.Length - 2);
         Assert.That(GetString(buffer, read + 2), Is.EqualTo("\0\0tex"));
 
+        // ReSharper disable once MethodHasAsyncOverload
         read = section.Body.Read(buffer, 1, buffer.Length - 1);
         Assert.That(GetString(buffer, read + 1), Is.EqualTo("\0t de"));
 
+        // ReSharper disable once MethodHasAsyncOverload
         read = section.Body.Read(buffer, 0, buffer.Length);
         Assert.That(GetString(buffer, read), Is.EqualTo("fault"));
 
