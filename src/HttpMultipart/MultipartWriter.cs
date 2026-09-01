@@ -18,13 +18,12 @@ using System.Threading.Tasks;
 /// usually with the same content type, so the opening bytes for the last type opened are kept and
 /// reused — which makes the per-part framing cost a single write of a cached array.
 /// </remarks>
-sealed class MultipartWriter
+sealed class MultipartWriter(Stream body, string boundary, string mediaType = "multipart/mixed")
 {
-    Stream body;
-    byte[] firstDelimiter;
-    byte[] delimiter;
-    byte[] terminator;
-    byte[] emptyTerminator;
+    byte[] firstDelimiter = Encoding.ASCII.GetBytes($"--{boundary}\r\n");
+    byte[] delimiter = Encoding.ASCII.GetBytes($"\r\n--{boundary}\r\n");
+    byte[] terminator = Encoding.ASCII.GetBytes($"\r\n--{boundary}--\r\n");
+    byte[] emptyTerminator = Encoding.ASCII.GetBytes($"--{boundary}--\r\n");
 
     // The last content type OpenPart was called with, and the complete opening bytes for it — the
     // delimiter and the headers together, since after the first part those never differ again.
@@ -33,23 +32,13 @@ sealed class MultipartWriter
 
     bool first = true;
 
-    public MultipartWriter(Stream body, string boundary, string mediaType = "multipart/mixed")
-    {
-        this.body = body;
-        Boundary = boundary;
-        ContentType = $"{mediaType}; boundary={boundary}";
-        firstDelimiter = Encoding.ASCII.GetBytes($"--{boundary}\r\n");
-        delimiter = Encoding.ASCII.GetBytes($"\r\n--{boundary}\r\n");
-        terminator = Encoding.ASCII.GetBytes($"\r\n--{boundary}--\r\n");
-        // A body with no parts at all has no preceding part for the delimiter's CRLF to close.
-        emptyTerminator = Encoding.ASCII.GetBytes($"--{boundary}--\r\n");
-    }
+    // A body with no parts at all has no preceding part for the delimiter's CRLF to close.
 
     /// <summary>The boundary, without the <c>--</c> markers.</summary>
-    public string Boundary { get; }
+    public string Boundary { get; } = boundary;
 
     /// <summary>The value to send as the <c>Content-Type</c> of the whole body.</summary>
-    public string ContentType { get; }
+    public string ContentType { get; } = $"{mediaType}; boundary={boundary}";
 
     /// <summary>
     /// A writer over a fresh boundary. The content is never scanned for collisions: 122 bits of
