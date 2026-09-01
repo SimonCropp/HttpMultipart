@@ -28,12 +28,7 @@ sealed class MultipartReader :
     MultipartBoundary boundary;
     MultipartReaderStream? currentStream;
 
-    public MultipartReader(string boundary, Stream stream)
-        : this(boundary, stream, defaultBufferSize)
-    {
-    }
-
-    public MultipartReader(string boundary, Stream stream, int bufferSize)
+    public MultipartReader(string boundary, Stream stream, int bufferSize = defaultBufferSize)
     {
         // Size of the boundary + leading and trailing CRLF + leading and trailing '--' markers.
         if (bufferSize < boundary.Length + 8)
