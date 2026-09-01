@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <LangVersion>14.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <!-- BenchmarkDotNet refuses to run a Debug build, and builds its own Release harness per job. -->
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The sources are linked, not project-referenced: a source-only package is compiled into the
+         consumer, so this is what a consumer actually measures. It also keeps ProjectDefaults out of
+         this project, which is what would otherwise try to pack it and resolve an icon through
+         SolutionDir. -->
+    <Compile Include="..\src\HttpMultipart\*.cs" LinkBase="HttpMultipart" />
+    <Using Include="HttpMultipart" />
+    <PackageReference Include="BenchmarkDotNet" />
+  </ItemGroup>
+</Project>

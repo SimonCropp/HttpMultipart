@@ -113,6 +113,99 @@ public class MultipartWriterTests
     }
 
     [Test]
+    public async Task OpenPartCanDeclareALengthForContentTheCallerStreams()
+    {
+        using var body = new MemoryStream();
+        var writer = new MultipartWriter(body, "b");
+
+        await writer.OpenPart("application/octet-stream", 5);
+        await body.WriteAsync("hello"u8.ToArray());
+        await writer.Terminate();
+
+        Assert.That(
+            Text(body),
+            Is.EqualTo(
+                """
+                --b
+                Content-Type: application/octet-stream
+                Content-Length: 5
+
+                hello
+                --b--
+
+                """.Crlf()));
+    }
+
+    [Test]
+    public async Task WritePartCopiesAStreamWithoutBufferingIt()
+    {
+        using var body = new MemoryStream();
+        var writer = new MultipartWriter(body, "b");
+
+        using var content = new MemoryStream("hello"u8.ToArray());
+        await writer.WritePart("text/plain", content, content.Length);
+        await writer.Terminate();
+
+        Assert.That(
+            Text(body),
+            Is.EqualTo(
+                """
+                --b
+                Content-Type: text/plain
+                Content-Length: 5
+
+                hello
+                --b--
+
+                """.Crlf()));
+    }
+
+    // Content-Length differs per part, so a length-carrying part can neither serve from nor fill the
+    // cache the plain overload keeps — but it must not invalidate it either.
+    [Test]
+    public async Task ALengthCarryingPartLeavesTheCachedOpeningIntact()
+    {
+        using var body = new MemoryStream();
+        var writer = new MultipartWriter(body, "b");
+
+        await writer.OpenPart("text/plain");
+        await body.WriteAsync("one"u8.ToArray());
+        // The second fills the cache for text/plain.
+        await writer.OpenPart("text/plain");
+        await body.WriteAsync("two"u8.ToArray());
+        await writer.WritePart("application/octet-stream", "X"u8.ToArray());
+        // The fourth must still come back through the cached opening, unchanged.
+        await writer.OpenPart("text/plain");
+        await body.WriteAsync("three"u8.ToArray());
+        await writer.Terminate();
+
+        Assert.That(
+            Text(body),
+            Is.EqualTo(
+                """
+                --b
+                Content-Type: text/plain
+
+                one
+                --b
+                Content-Type: text/plain
+
+                two
+                --b
+                Content-Type: application/octet-stream
+                Content-Length: 1
+
+                X
+                --b
+                Content-Type: text/plain
+
+                three
+                --b--
+
+                """.Crlf()));
+    }
+
+    [Test]
     public void ContentTypeCarriesTheBoundary()
     {
         var writer = new MultipartWriter(new MemoryStream(), "b", "multipart/related");

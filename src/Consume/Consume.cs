@@ -46,6 +46,12 @@ static class Consume
         await writer.OpenPart("application/json", cancel);
         await stream.WriteAsync(new byte[] {1}, cancel);
         await writer.WritePart("application/octet-stream", new byte[] {2}, cancel);
+
+        // The streaming half: a length declared without the part being held in memory.
+        await writer.OpenPart("application/octet-stream", 1, cancel);
+        await stream.WriteAsync(new byte[] {3}, cancel);
+        await writer.WritePart("application/octet-stream", Stream.Null, 0, cancel);
+
         await writer.Terminate(cancel);
 
         var explicitBoundary = new MultipartWriter(stream, "abc");

@@ -59,8 +59,9 @@ if (response.Content.TryGetMultipartBoundary(out var boundary))
 `ReadNextSectionAsync` is forward-only, and a section's `Body` is valid only until the next section is
 read. Read or copy what you need before moving on.
 
-For binary parts, `ReadAsBytesAsync` uses the `Content-Length` header to size its buffer without ever
-trusting it for the read itself:
+For binary parts, `ReadAsBytesAsync` buffers the whole part. It uses `Content-Length` to size the
+initial buffer — capped, since the header comes from the part itself — and never trusts it for the
+read. See [Large payloads](#large-payloads) before using it on anything unbounded:
 
 <!-- snippet: readBinary -->
 <a id='snippet-readBinary'></a>
@@ -86,12 +87,18 @@ while (await reader.ReadNextSectionAsync() is {} section)
 
 | Property | Default | What it bounds |
 | --- | --- | --- |
-| `HeadersCountLimit` | 16 | Headers per section |
-| `HeadersLengthLimit` | 16 KiB | Combined header bytes per section, and the preamble |
-| `BodyLengthLimit` | none | Bytes in any one section body |
+| `HeadersCountLimit` | 16 | Distinct header names per section |
+| `HeadersLengthLimit` | 16 KiB | Combined headers per section, and the preamble, and the epilogue |
+| `BodyLengthLimit` | **none** | Bytes in any one section body |
 
 Exceeding a limit throws `InvalidDataException`. The transport is responsible for bounding the overall
 body length; these bound what one section can cost you.
+
+`BodyLengthLimit` defaulting to no limit matches `Microsoft.AspNetCore.WebUtilities`, and costs nothing
+while you stream a section — but **set it before reading untrusted input**, because it is the only
+thing bounding a part you then buffer. Two things it does not bound: the number of sections, and the
+combined header size in *bytes* rather than UTF-16 chars, which multi-byte header values can push to
+roughly three times `HeadersLengthLimit`.
 
 
 ## Writing
@@ -121,6 +128,26 @@ every part's content byte-exact, since a reader strips that CRLF as part of the 
 `OpenPart` caches the framing bytes for a repeated content type, so a caller opening a part per row
 pays a single array write per part rather than re-encoding the delimiter each time.
 
+A large part can declare its length without ever being held in memory:
+
+<!-- snippet: writeLarge -->
+<a id='snippet-writeLarge'></a>
+```cs
+var writer = MultipartWriter.Create(stream);
+
+// Declares the length without the part ever being held in memory: it is copied from the source
+// straight into the body.
+await writer.WritePart("application/octet-stream", source, source.Length);
+
+await writer.Terminate();
+```
+<sup><a href='/src/Tests/Usage.cs#L98-L108' title='Snippet source file'>snippet source</a> | <a href='#snippet-writeLarge' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+`OpenPart(contentType, contentLength)` is the same thing split in two, for a caller who wants to write
+the content itself rather than hand over a `Stream`. The length is advisory in both — nothing verifies
+you write exactly that many bytes.
+
 
 ## API
 
@@ -129,10 +156,43 @@ pays a single array write per part rather than re-encoding the delimiter each ti
 | `MultipartReader` | Reads sections from a `Stream` |
 | `MultipartSection` | One section: `Headers`, `Body`, `ContentType`, `ContentDisposition`, `ContentLength` |
 | `MultipartWriter` | Writes multipart framing to a `Stream` |
-| `MultipartSectionExtensions` | `ReadAsBytesAsync`, `ReadAsStringAsync` |
+| `MultipartSectionExtensions` | `ReadAsBytesAsync`, `ReadAsStringAsync` — both buffer the whole part |
 | `MultipartContentExtensions` | `TryGetMultipartBoundary` on an `HttpContent` |
 | `BufferedReadStream` | Line-reading buffered stream the reader is built on |
 | `StreamHelperExtensions` | `DrainAsync` |
+
+
+## Large payloads
+
+The reader streams. `section.Body` is forward-only over a fixed buffer, so copying a part costs the
+same whether it is 64 KB or 4 MB — measured at **7.5 KB allocated, either way**. That is the path to
+use for anything you have not bounded.
+
+The two helpers buffer, and are for parts you know are small. Against streaming the same 4 MB part:
+
+| | Time | Allocated |
+| --- | --- | --- |
+| `section.Body.CopyToAsync(destination)` | 216 µs | **7.5 KB** |
+| `section.ReadAsBytesAsync()` | 1,603 µs | 11,272 KB |
+| `section.ReadAsStringAsync()` | 4,211 µs | 16,450 KB |
+
+Buffering to bytes costs roughly 2.7× the part, and to a string roughly 4×.
+
+**Set `BodyLengthLimit` before reading untrusted input.** It defaults to no limit, and it is the only
+thing bounding a part you go on to buffer. `Content-Length` is not that thing: it is advisory, it sizes
+the initial buffer and is capped, and it is never trusted for a read.
+
+**Leave `bufferSize` alone** unless you have measured otherwise. A single read never returns more than
+the internal buffer holds, so a larger one does mean fewer reads — but `MultipartReader` is not
+disposable, its pooled buffer is never returned, and every reader allocates one of that size. Raising
+it from 4 KB to 1 MB made a 16 MB part **47× slower** on the benchmark. Above 85 KB it is a
+large-object-heap allocation per reader.
+
+To write a large part, declare the length and stream the content rather than materialising it — the
+`WritePart(contentType, Stream, contentLength)` overload above allocates 759× less than handing over a
+`ReadOnlyMemory<byte>`.
+
+See [Benchmarks](Benchmarks/readme.md) for the full numbers and how to reproduce them.
 
 
 ## Differences from Microsoft.AspNetCore.WebUtilities

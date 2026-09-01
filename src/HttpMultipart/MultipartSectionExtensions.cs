@@ -10,12 +10,16 @@ using System.Threading.Tasks;
 /// <summary>Extension methods for reading the body of a <see cref="MultipartSection"/>.</summary>
 static class MultipartSectionExtensions
 {
+    const int maxPresize = 1024 * 1024;
+
     /// <summary>Reads the section body to a byte array.</summary>
     public static async Task<byte[]> ReadAsBytesAsync(this MultipartSection section, CancellationToken cancel = default)
     {
-        // Content-Length is advisory — used to size the buffer, never trusted for the read itself.
+        // Content-Length sizes the initial buffer and nothing else: it is never trusted for the read,
+        // and it is capped because it comes from the part itself. Uncapped, a part declaring two
+        // gigabytes over a one-byte body would have that allocated before a byte was read.
         using var memory = section.ContentLength is { } length
-            ? new MemoryStream(length)
+            ? new MemoryStream((int) Math.Min(length, maxPresize))
             : new MemoryStream();
         await section.Body.CopyToAsync(memory, cancel);
         return memory.ToArray();

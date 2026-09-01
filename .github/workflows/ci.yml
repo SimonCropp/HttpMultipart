@@ -19,3 +19,7 @@ jobs:
       # then builds the Consume projects against the real nupkg.
       - name: Verify the package
         run: pwsh src/verify-package.ps1
+      # Built, never run: timings on a shared runner are noise, but an unbuilt benchmark project rots
+      # silently against an API change.
+      - name: Build the benchmarks
+        run: dotnet build Benchmarks -c Release

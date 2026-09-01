@@ -70,6 +70,35 @@ public class BufferedReadStreamTests
         Assert.That(line, Is.EqualTo(content));
     }
 
+    // Both read paths in MultipartReaderStream call Read(Span<byte>). Without the override it falls to
+    // the base Stream shim, which rents an array, calls the byte[] overload and copies again.
+    [Test]
+    public void ReadSpanDrainsTheBufferBeforeTheInnerStream()
+    {
+        var stream = MakeStream("hello world", bufferSize: 4096);
+        Assert.That(stream.EnsureBuffered(), Is.True);
+        Assert.That(stream.BufferedData.Count, Is.EqualTo(11));
+
+        var buffer = new byte[5];
+        Assert.That(stream.Read(buffer.AsSpan()), Is.EqualTo(5));
+
+        Assert.That(Encoding.UTF8.GetString(buffer), Is.EqualTo("hello"));
+        Assert.That(stream.BufferedData.Count, Is.EqualTo(6));
+    }
+
+    [Test]
+    public void ReadSpanFallsThroughToTheInnerStreamWhenNothingIsBuffered()
+    {
+        var stream = MakeStream("hello world", bufferSize: 4096);
+        Assert.That(stream.BufferedData.Count, Is.Zero);
+
+        var buffer = new byte[5];
+        Assert.That(stream.Read(buffer.AsSpan()), Is.EqualTo(5));
+
+        Assert.That(Encoding.UTF8.GetString(buffer), Is.EqualTo("hello"));
+        Assert.That(stream.BufferedData.Count, Is.Zero);
+    }
+
     static BufferedReadStream MakeStream(string text, int bufferSize) =>
         new(new MemoryStream(Encoding.UTF8.GetBytes(text)), bufferSize);
 }

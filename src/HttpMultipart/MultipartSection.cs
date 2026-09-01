@@ -17,13 +17,18 @@ sealed class MultipartSection
     /// <summary>The value of the <c>Content-Disposition</c> header, or null.</summary>
     public string? ContentDisposition => Header("Content-Disposition");
 
-    /// <summary>The value of the <c>Content-Length</c> header, or null. Advisory — used to preallocate.</summary>
-    public int? ContentLength
+    /// <summary>
+    /// The value of the <c>Content-Length</c> header, or null. Advisory — it sizes a buffer and is
+    /// never trusted for a read. <c>long</c> because the header is a 64-bit quantity: parsed as an
+    /// <c>int</c>, a part declaring more than two gigabytes would read as null, which is
+    /// indistinguishable from a part declaring nothing.
+    /// </summary>
+    public long? ContentLength
     {
         get
         {
             if (Header("Content-Length") is { } value &&
-                int.TryParse(value, out var length) &&
+                long.TryParse(value, out var length) &&
                 length >= 0)
             {
                 return length;

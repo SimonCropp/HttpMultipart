@@ -91,6 +91,32 @@ public class MultipartRoundTripTests
         Assert.That(await reader.ReadNextSectionAsync(), Is.Null);
     }
 
+    // The large-part path end to end: neither half holds the content in memory, and the length the
+    // writer declared is the one the reader reports.
+    [Test]
+    public async Task AStreamedPartRoundTripsWithItsDeclaredLength()
+    {
+        var content = new byte[64 * 1024];
+        for (var i = 0; i < content.Length; i++)
+        {
+            content[i] = (byte) i;
+        }
+
+        var body = new MemoryStream();
+        var writer = MultipartWriter.Create(body);
+        await writer.WritePart("application/octet-stream", new MemoryStream(content), content.Length);
+        await writer.Terminate();
+
+        body.Seek(0, SeekOrigin.Begin);
+        var reader = new MultipartReader(writer.Boundary, body);
+
+        var section = await ReadSection(reader);
+        Assert.That(section.ContentLength, Is.EqualTo(content.Length));
+        Assert.That(await section.ReadAsBytesAsync(), Is.EqualTo(content));
+
+        Assert.That(await reader.ReadNextSectionAsync(), Is.Null);
+    }
+
     [Test]
     public async Task AnEmptyBodyReadsBackAsNoSections()
     {

@@ -68,12 +68,14 @@ sealed class BufferedReadStream :
             if (value <= inner.Position)
             {
                 // Forward within the buffer?
-                var innerOffset = (int)(inner.Position - value);
+                // Kept in long: cast to int first, a backward seek of 2^32 on a stream this size
+                // truncates to zero and silently takes the branch below without moving anything.
+                var innerOffset = inner.Position - value;
                 if (innerOffset <= bufferCount)
                 {
                     // Yes, just skip some of the buffered data.
-                    bufferOffset += bufferCount - innerOffset;
-                    bufferCount = innerOffset;
+                    bufferOffset += bufferCount - (int) innerOffset;
+                    bufferCount = (int) innerOffset;
                 }
                 else
                 {
@@ -158,6 +160,27 @@ sealed class BufferedReadStream :
         }
 
         return inner.Read(buffer, offset, count);
+    }
+
+    /// <remarks>
+    /// Overridden rather than left to the base <see cref="Stream"/> shim, which rents an array, calls
+    /// the <c>byte[]</c> overload and copies into the span. Both read paths in
+    /// <c>MultipartReaderStream</c> call this one, so without it every read pays a pooled array and a
+    /// full extra copy of the payload.
+    /// </remarks>
+    public override int Read(Span<byte> buffer)
+    {
+        // Drain buffer.
+        if (bufferCount > 0)
+        {
+            var toCopy = Math.Min(bufferCount, buffer.Length);
+            this.buffer.AsSpan(bufferOffset, toCopy).CopyTo(buffer);
+            bufferOffset += toCopy;
+            bufferCount -= toCopy;
+            return toCopy;
+        }
+
+        return inner.Read(buffer);
     }
 
     public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>

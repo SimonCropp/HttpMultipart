@@ -84,6 +84,28 @@ public class MultipartExtensionsTests
         Assert.That(await section.ReadAsBytesAsync(), Is.EqualTo(new byte[] {1, 2, 3, 4, 5}));
     }
 
+    // Content-Length sizes a buffer and nothing else. A part declaring two gigabytes over a three-byte
+    // body must not have that allocated, and must still read back what is actually there.
+    [Test]
+    public async Task ReadAsBytesAsyncIgnoresAnAbsurdContentLength()
+    {
+        var section = Section("application/octet-stream", [1, 2, 3]);
+        section.Headers!["Content-Length"] = "2147483647";
+
+        Assert.That(await section.ReadAsBytesAsync(), Is.EqualTo(new byte[] {1, 2, 3}));
+    }
+
+    // Parsed as an int this would read as null, which is indistinguishable from a part declaring
+    // nothing at all.
+    [Test]
+    public void ContentLengthIsA64BitQuantity()
+    {
+        var section = Section("application/octet-stream", []);
+        section.Headers!["Content-Length"] = "3000000000";
+
+        Assert.That(section.ContentLength, Is.EqualTo(3_000_000_000L));
+    }
+
     [Test]
     public async Task ReadAsStringAsyncDefaultsToUtf8()
     {

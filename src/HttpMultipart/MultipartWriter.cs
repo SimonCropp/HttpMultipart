@@ -83,16 +83,40 @@ sealed class MultipartWriter
     }
 
     /// <summary>
+    /// Opens a part of <paramref name="contentType"/> declaring <paramref name="contentLength"/>; the
+    /// caller writes the content raw. This is how a large part is written without holding it in memory.
+    /// </summary>
+    /// <remarks>
+    /// The length is advisory: nothing here verifies the caller goes on to write exactly that many
+    /// bytes. The framing stays correct either way — the delimiter follows whatever was written — but a
+    /// reader is entitled to believe the header.
+    /// </remarks>
+    public Task OpenPart(string contentType, long contentLength, CancellationToken cancel = default) =>
+        // Content-Length differs per part, so these headers are built each time rather than cached. The
+        // cache the other overload keeps is left alone: its entry is still valid framing for its type.
+        Open(
+            Encoding.ASCII.GetBytes($"Content-Type: {contentType}\r\nContent-Length: {contentLength}\r\n\r\n"),
+            cancel);
+
+    /// <summary>
     /// Opens a part of <paramref name="contentType"/> and writes <paramref name="content"/>, declaring
     /// its length.
     /// </summary>
     public async Task WritePart(string contentType, ReadOnlyMemory<byte> content, CancellationToken cancel = default)
     {
-        // Content-Length differs per part, so these headers are built each time rather than cached.
-        await Open(
-            Encoding.ASCII.GetBytes($"Content-Type: {contentType}\r\nContent-Length: {content.Length}\r\n\r\n"),
-            cancel);
+        await OpenPart(contentType, content.Length, cancel);
         await body.WriteAsync(content, cancel);
+    }
+
+    /// <summary>
+    /// Opens a part of <paramref name="contentType"/> and copies <paramref name="content"/> into it,
+    /// declaring <paramref name="contentLength"/>. Neither this nor the reader ever holds the whole
+    /// part in memory.
+    /// </summary>
+    public async Task WritePart(string contentType, Stream content, long contentLength, CancellationToken cancel = default)
+    {
+        await OpenPart(contentType, contentLength, cancel);
+        await content.CopyToAsync(body, cancel);
     }
 
     /// <summary>Closes the body. Nothing may be written after this.</summary>

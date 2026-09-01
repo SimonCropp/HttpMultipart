@@ -87,6 +87,33 @@ public class Usage
         Assert.That(written, Does.EndWith($"\r\n--{writer.Boundary}--\r\n"));
     }
 
+    [Test]
+    public async Task WriteLarge()
+    {
+        var stream = new MemoryStream();
+        var content = new byte[64 * 1024];
+        Random.Shared.NextBytes(content);
+        var source = new MemoryStream(content);
+
+        #region writeLarge
+
+        var writer = MultipartWriter.Create(stream);
+
+        // Declares the length without the part ever being held in memory: it is copied from the source
+        // straight into the body.
+        await writer.WritePart("application/octet-stream", source, source.Length);
+
+        await writer.Terminate();
+
+        #endregion
+
+        stream.Seek(0, SeekOrigin.Begin);
+        var reader = new MultipartReader(writer.Boundary, stream);
+        var section = await reader.ReadNextSectionAsync();
+        Assert.That(section!.ContentLength, Is.EqualTo(content.Length));
+        Assert.That(await section.ReadAsBytesAsync(), Is.EqualTo(content));
+    }
+
     readonly List<string> handled = [];
 
     void Handle(string? contentType, byte[] bytes) =>

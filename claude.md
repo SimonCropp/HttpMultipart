@@ -27,6 +27,7 @@ optionally collapsing their duplicated boundary/byte-reading glue onto `TryGetMu
 dotnet build src/HttpMultipart.slnx -c Release
 dotnet test src/HttpMultipart.slnx -c Release --no-build
 pwsh src/verify-package.ps1
+dotnet run -c Release --project Benchmarks -- --filter '*'
 ```
 
 `verify-package.ps1` packs and then builds the `Consume*` projects against the real `.nupkg`. It is the
@@ -50,6 +51,28 @@ projects restore a package that does not exist until pack has run.
 - **`src/Consume*/`** — compile-only projects that restore the packed `.nupkg`. Deliberately outside
   the solution. `Consume` (implicit usings on), `ConsumeNoImplicitUsings` (explicit using),
   `ConsumeOldTfm` (asserts the TFM guard fires).
+- **`Benchmarks/`** — BenchmarkDotNet, at the repo root and out of the solution, so it inherits neither
+  `Directory.Build.props` nor `Directory.Packages.props` from `src/`. It **links** the sources rather
+  than taking a `ProjectReference`: that is what a consumer of a source-only package compiles, and it
+  keeps ProjectDefaults out, which would otherwise try to pack the benchmark project and resolve an
+  icon through the global `SolutionDir`. Release is mandatory — BenchmarkDotNet refuses a Debug build.
+  CI builds it and never runs it.
+
+## Divergences from upstream aspnetcore
+
+Three are API, and deliberate — single-valued `Headers`, inlined boundary de-quoting, no
+`BaseStreamOffset` — all to drop `Microsoft.Extensions.Primitives` and `Microsoft.Net.Http.Headers`.
+See `readme.md`.
+
+Two are bug fixes to code upstream still carries. The 28 ported upstream tests pass unchanged either
+way, which is what says the fixes are behaviour-preserving:
+
+- `BufferedReadStream` overrides `Read(Span<byte>)`. Upstream does not, and both read paths in
+  `MultipartReaderStream` call exactly that, so every read there falls to the base `Stream` shim — a
+  pooled array and a full extra copy of the payload, per read.
+- `BufferedReadStream`'s `Position` setter keeps its seek arithmetic in `long`. Upstream casts the
+  difference to `int`, so a backward seek of 2^32 on a seekable stream over 2 GB truncates to zero and
+  silently moves nothing.
 
 ## Constraints that are easy to break
 
