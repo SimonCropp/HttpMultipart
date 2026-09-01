@@ -319,15 +319,15 @@ sealed class MultipartReaderStream :
             Debug.Assert(read == length);
 
             // Whitespace may exceed the buffer.
-            var remainder = await stream.innerStream.ReadLineAsync(lengthLimit: 100, cancellationToken);
-            remainder = remainder.Trim();
-            if (string.Equals("--", remainder, StringComparison.Ordinal))
+            var line = await stream.innerStream.ReadLineAsync(lengthLimit: 100, cancellationToken);
+            var remainder = line.AsSpan().Trim();
+            if (remainder.Equals("--", StringComparison.Ordinal))
             {
                 stream.FinalBoundaryFound = true;
             }
 
             if (!stream.FinalBoundaryFound &&
-                !string.Equals(string.Empty, remainder, StringComparison.Ordinal))
+                !remainder.IsEmpty)
             {
                 throw new IOException("Unexpected data found on the boundary line.");
             }
