@@ -58,14 +58,36 @@ returned only on dispose. Disposed, it is 2.9 KB flat at every size. Before `Mul
 the arm allocating 2.9 KB is still 45× slower than the 4 KB default. The allocation was never the
 reason.
 
-Part of the real reason is visible in `MultipartReaderStream.ReadAsync`: `IndexOf` scans *all* buffered
-data looking for the boundary, but the read returns at most the caller's buffer — and
-`Stream.CopyToAsync` passes 81,920 bytes. Set the internal buffer above that and every read rescans the
-remainder it could not hand back. At 64 KB there is no rescan and it is still 3.5× the default, which
-is consistent with the buffer no longer fitting in cache, though that part is inference rather than
-measurement.
+The reason is that `CopyToAsync` never reads more than 4 KB, whatever the internal buffer is. Its base
+implementation asks for a buffer of 1 byte when a seekable stream reports a length at or below its
+position, which a section always does before its first read — the override in `MultipartReaderStream`
+exists to floor that at 4 KB. So a larger internal buffer buys no larger reads and costs cache.
 
-Either way the guidance is the same: leave `bufferSize` alone, and dispose the reader.
+Guidance: through `CopyToAsync`, leave `bufferSize` alone. And dispose the reader.
+
+### Scan window — `ScanBenchmarks`
+
+A read that supplies its own buffer is not capped at 4 KB, and then how much of the buffered data each
+read scans for the boundary starts to matter. `MultipartReaderStream` looks only as far as a read could
+return — a boundary starting past that is found by the call that reaches it — which is what stops the
+next read repeating the search over the remainder it could not hand back.
+
+16 MB part, 1 MB internal buffer, with the window and without it:
+
+| Read buffer | Content | Whole buffer scanned | Window |
+| --- | --- | --- | --- |
+| 64 KB | no CR | 4.890 ms | **1.298 ms** |
+| 64 KB | CRLF lines | 4.540 ms | **1.378 ms** |
+| 256 KB | no CR | 2.188 ms | **1.422 ms** |
+| 256 KB | CRLF lines | 2.079 ms | **1.631 ms** |
+
+The gap widens as the read buffer shrinks relative to the internal one, which is the shape of the
+redundancy: the smaller each read, the more times the same bytes were being searched. Content with a CR
+per line is carried as a second arm because the search hunts the delimiter's leading CR first, so
+CR-free content is its easiest case and would flatter the result on its own.
+
+Note these are all faster than the `CopyToAsync` arm above at the same 1 MB internal buffer, which is
+the 4 KB read cap rather than anything about the scan.
 
 ### Per-section cost — `SectionBenchmarks`
 

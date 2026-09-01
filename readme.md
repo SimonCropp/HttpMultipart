@@ -189,11 +189,15 @@ without that, every reader allocates a fresh one. Disposing takes a 16 MB read f
 every section it produced, so do it after the last one is read. Skipping it is safe and is what the
 upstream shape does; it just costs an allocation per reader.
 
-**Leave `bufferSize` alone** unless you have measured otherwise. A larger buffer does mean fewer reads,
-but it was the *slowest* arm of every benchmark run — 16 MB took 1.2 ms at the 4 KB default and 56 ms
-at 1 MB. Part of that is visible in the code: a read scans all buffered data for the boundary but
-returns at most the caller's buffer, and `Stream.CopyToAsync` passes 81,920 bytes. Set the internal
-buffer above that and every read rescans the remainder it could not hand back.
+**Leave `bufferSize` alone if you copy with `CopyToAsync`.** A 16 MB part takes 1.2 ms at the 4 KB
+default and 56 ms at 1 MB, because `CopyToAsync` reads in 4 KB whatever you set: the base
+implementation asks for a buffer of 1 byte when a seekable stream reports a length at or below its
+position, which a section always does before its first read, so the override floors it at 4 KB. A
+larger internal buffer then buys nothing and costs cache.
+
+**Read with your own buffer if you want a larger one to pay off.** The same 16 MB part through a
+256 KB read buffer over a 1 MB internal buffer takes 1.4 ms, and a read only scans as far as it could
+return, so the boundary search does not repeat over what it could not hand back.
 
 To write a large part, declare the length and stream the content rather than materialising it — the
 `WritePart(contentType, Stream, contentLength)` overload above allocates 759× less than handing over a

@@ -36,6 +36,28 @@ static class Bodies
         return (stream.ToArray(), writer.Boundary);
     }
 
+    /// <summary>
+    /// A body of one part of <paramref name="size"/> bytes of CRLF-terminated lines. The boundary scan
+    /// looks for the delimiter's leading CR first, so this is the shape where it finds a candidate every
+    /// line and has to compare, rather than sailing through content that holds no CR at all.
+    /// </summary>
+    public static (byte[] Body, string Boundary) OneTextPart(int size)
+    {
+        var line = Encoding.UTF8.GetBytes(new string('x', 38) + "\r\n");
+        var content = new byte[size];
+        for (var i = 0; i < content.Length; i++)
+        {
+            content[i] = line[i % line.Length];
+        }
+
+        var stream = new MemoryStream();
+        var writer = MultipartWriter.Create(stream);
+        writer.OpenPart("text/plain").GetAwaiter().GetResult();
+        stream.Write(content);
+        writer.Terminate().GetAwaiter().GetResult();
+        return (stream.ToArray(), writer.Boundary);
+    }
+
     /// <summary>A body of <paramref name="count"/> parts, each carrying a short line of text.</summary>
     public static (byte[] Body, string Boundary) ManyParts(int count)
     {

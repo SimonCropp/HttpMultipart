@@ -164,6 +164,76 @@ public class MultipartConformanceTests
         Assert.That(await reader.ReadNextSectionAsync(), Is.Null);
     }
 
+    // A read looks for a boundary only as far as it could return, so with an internal buffer far larger
+    // than the caller's these reads each scan a sliver of what is buffered and the boundary is found by
+    // whichever call reaches it. The content is laced with near-misses — a prefix of the delimiter that
+    // is not one — so a window that stopped a byte short would show up as content going missing.
+    [TestCase(97)]
+    [TestCase(1)]
+    public async Task ABoundaryBeyondTheCallersBufferIsFoundByTheCallThatReachesIt(int readSize)
+    {
+        var content = NearMissContent();
+        var reader = new MultipartReader(
+            boundary,
+            MakeStream(Laced(content)),
+            bufferSize: 64 * 1024);
+
+        var section = await ReadSection(reader);
+        Assert.That(await Drain(section, readSize), Is.EqualTo(content));
+
+        Assert.That(await reader.ReadNextSectionAsync(), Is.Null);
+    }
+
+    // The same through the synchronous read path, which has its own copy of the scan.
+    [Test]
+    public async Task ABoundaryBeyondTheCallersBufferIsFoundBySyncReadsToo()
+    {
+        var content = NearMissContent();
+        var reader = new MultipartReader(
+            boundary,
+            MakeStream(Laced(content)),
+            bufferSize: 64 * 1024);
+
+        var section = await ReadSection(reader);
+
+        var read = new MemoryStream();
+        var buffer = new byte[97];
+        int count;
+        while ((count = section.Body.Read(buffer, 0, buffer.Length)) > 0)
+        {
+            read.Write(buffer, 0, count);
+        }
+
+        Assert.That(Encoding.UTF8.GetString(read.ToArray()), Is.EqualTo(content));
+        Assert.That(await reader.ReadNextSectionAsync(), Is.Null);
+    }
+
+    static string NearMissContent() =>
+        string.Concat(
+            Enumerable.Repeat("\r\n--test-bound is not the delimiter\r\n" + new string('x', 200), 200));
+
+    static string Laced(string content) =>
+        $"""
+        --test-boundary
+
+        {content}
+        --test-boundary--
+
+        """.Crlf();
+
+    static async Task<string> Drain(MultipartSection section, int readSize)
+    {
+        var read = new MemoryStream();
+        var buffer = new byte[readSize];
+        int count;
+        while ((count = await section.Body.ReadAsync(buffer)) > 0)
+        {
+            read.Write(buffer, 0, count);
+        }
+
+        return Encoding.UTF8.GetString(read.ToArray());
+    }
+
     // The delimiter is defined in terms of CRLF. A body using bare LF has no delimiter line at all, and
     // the trailing content is reported rather than silently treated as a part. This is the one body
     // here that goes through Lf rather than Crlf.

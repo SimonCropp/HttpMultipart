@@ -73,6 +73,11 @@ way, which is what says the fixes are behaviour-preserving:
 - `BufferedReadStream`'s `Position` setter keeps its seek arithmetic in `long`. Upstream casts the
   difference to `int`, so a backward seek of 2^32 on a seekable stream over 2 GB truncates to zero and
   silently moves nothing.
+- `MultipartReaderStream` scans for the boundary only as far as a read could return, rather than over
+  everything buffered. Upstream scans it all, so with an internal buffer larger than the caller's the
+  next read repeats the search over what the last could not hand back — 3.8x on a 16 MB part read
+  through a 64 KB buffer. `ScanLength` carries the reasoning; the partial-match scan is skipped when
+  the window is short, because it looks at the tail of the buffered data and a short window has none.
 - `MultipartReader` is `IDisposable`, and `BufferedReadStream` takes a `leaveOpen`. Upstream has
   neither, so the read buffer it rents from `ArrayPool` is never returned and every reader allocates
   one of its buffer size. Disposal is optional — an undisposed reader behaves exactly as it did — but

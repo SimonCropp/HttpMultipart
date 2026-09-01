@@ -115,6 +115,31 @@ sealed class MultipartReaderStream :
         }
     }
 
+    /// <summary>
+    /// How far into the buffered data a read has to look for a boundary. A read returns at most
+    /// <paramref name="wanted"/> bytes, so only a boundary starting inside that stretch can affect it —
+    /// one starting later is found by the call that reaches it. The window carries an extra
+    /// boundary-length so a boundary starting at the last returnable byte is still whole inside it.
+    /// </summary>
+    /// <remarks>
+    /// Without this the scan covers everything buffered while the read hands back only what the caller
+    /// asked for, so the next call rescans the remainder. Returns the full count when the window reaches
+    /// that far anyway, which is what the partial-match scan below relies on — it looks at the tail of
+    /// the buffered data, and a truncated window has no tail.
+    /// </remarks>
+    int ScanLength(int buffered, int wanted)
+    {
+        var boundaryLength = boundary.BoundaryBytes.Length;
+        // Written as a subtraction because wanted may be int.MaxValue.
+        if (wanted > 0 &&
+            buffered - boundaryLength + 1 > wanted)
+        {
+            return wanted + boundaryLength - 1;
+        }
+
+        return buffered;
+    }
+
     int UpdatePosition(int read)
     {
         position += read;
@@ -153,8 +178,9 @@ sealed class MultipartReaderStream :
         }
 
         var bufferedData = innerStream.BufferedData;
+        var scan = ScanLength(bufferedData.Count, count);
 
-        var index = bufferedData.AsSpan().IndexOf(boundary.BoundaryBytes);
+        var index = bufferedData.AsSpan(0, scan).IndexOf(boundary.BoundaryBytes);
         if (index >= 0)
         {
             // There is data before the boundary, we should return it to the user.
@@ -170,9 +196,11 @@ sealed class MultipartReaderStream :
             return ReadBoundary(this, boundary.BoundaryBytes.Length);
         }
 
-        // Scan for a partial boundary match.
+        // Scan for a partial boundary match — only where the window covered everything buffered. A read
+        // that stops short of the end cannot run into a boundary split across a refill.
         int read;
-        if (SubMatch(bufferedData, boundary.BoundaryBytes, out var matchOffset, out var matchCount))
+        if (scan == bufferedData.Count &&
+            SubMatch(bufferedData, boundary.BoundaryBytes, out var matchOffset, out var matchCount))
         {
             // We found a possible match, return any data before it.
             if (matchOffset > bufferedData.Offset)
@@ -236,8 +264,9 @@ sealed class MultipartReaderStream :
         }
 
         var bufferedData = innerStream.BufferedData;
+        var scan = ScanLength(bufferedData.Count, buffer.Length);
 
-        var index = bufferedData.AsSpan().IndexOf(boundary.BoundaryBytes);
+        var index = bufferedData.AsSpan(0, scan).IndexOf(boundary.BoundaryBytes);
 
         if (index >= 0)
         {
@@ -254,9 +283,11 @@ sealed class MultipartReaderStream :
             return await ReadBoundaryAsync(this, boundary.BoundaryBytes.Length, cancellationToken);
         }
 
-        // Scan for a boundary match, full or partial.
+        // Scan for a partial boundary match — only where the window covered everything buffered. A read
+        // that stops short of the end cannot run into a boundary split across a refill.
         int read;
-        if (SubMatch(bufferedData, boundary.BoundaryBytes, out var matchOffset, out _))
+        if (scan == bufferedData.Count &&
+            SubMatch(bufferedData, boundary.BoundaryBytes, out var matchOffset, out _))
         {
             // We found a possible match, return any data before it.
             if (matchOffset > bufferedData.Offset)
