@@ -181,6 +181,8 @@ The reader is behaviourally identical - the aspnetcore test suite passes against
 * Boundary de-quoting is inlined rather than calling `HeaderUtilities.RemoveQuotes`, and header names   are string literals rather than `HeaderNames` constants. This drops `Microsoft.Net.Http.Headers`.
 * `MultipartSection.BaseStreamOffset` is not carried.
 
+Single-valued headers are a simplification rather than a loss. What a body part carries is the `Content-*` fields, which RFC 2045 allows at most once per entity; the HTTP headers that do legitimately repeat - `Accept`, `Set-Cookie`, `Via` - are list-valued and have no meaning on a part. A repeated name is malformed input, and modelling it does not read any better: aspnetcore's `MultipartSection.ContentType` is `StringValues.ToString()`, which joins with a comma, so a part with two `Content-Type` lines yields `text/plain, application/json` there. Last-wins at least yields a value that parses. Either way the repeats are bounded - a duplicate name does not grow the dictionary, so `HeadersCountLimit` never sees it, but `HeadersLengthLimit` counts the raw header lines.
+
 `FileMultipartSection`, `FormMultipartSection` and the `ContentDispositionHeaderValue` parsing helpers are not included - they exist to serve `FormFeature`, and they are what would pull `Microsoft.Net.Http.Headers` back in.
 
 
