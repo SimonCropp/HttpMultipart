@@ -66,8 +66,6 @@ static class Consume
         _ = await buffered.EnsureBufferedAsync(cancel);
         _ = buffered.ReadLine(100);
         _ = await buffered.ReadLineAsync(100, cancel);
-        await inner.DrainAsync(cancel);
-        await inner.DrainAsync(1024, cancel);
     }
 
     static Task Main() =>

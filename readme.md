@@ -143,7 +143,6 @@ await writer.Terminate();
 | `MultipartSectionExtensions` | `ReadAsBytesAsync`, `ReadAsStringAsync` - both buffer the whole part |
 | `MultipartContentExtensions` | `TryGetMultipartBoundary` on an `HttpContent` |
 | `BufferedReadStream` | Line-reading buffered stream the reader is built on |
-| `StreamHelperExtensions` | `DrainAsync` |
 
 
 ## Large payloads
@@ -175,11 +174,14 @@ See [Benchmarks](Benchmarks/readme.md) for the full numbers and how to reproduce
 
 ## Differences from Microsoft.AspNetCore.WebUtilities
 
-The reader is behaviourally identical - the aspnetcore test suite passes against it unchanged - with three deliberate API differences, all to drop package dependencies:
+The reader is behaviourally identical - the aspnetcore test suite passes against it unchanged - with four deliberate API differences:
 
 * `MultipartSection.Headers` is a `Dictionary<string, string>` rather than  `Dictionary<string, StringValues>`. A repeated header name is last-wins. This drops   `Microsoft.Extensions.Primitives`.
 * Boundary de-quoting is inlined rather than calling `HeaderUtilities.RemoveQuotes`, and header names   are string literals rather than `HeaderNames` constants. This drops `Microsoft.Net.Http.Headers`.
 * `MultipartSection.BaseStreamOffset` is not carried.
+* `StreamHelperExtensions` is not shipped. Its `DrainAsync` was an extension on `Stream`, so in a source package it would land on every stream in the consuming project - for a method only the reader ever called. It is a private member of `MultipartReader` here.
+
+The first three drop package dependencies. The last is about the shipped sources compiling into the consumer, where a public extension method is not a free addition.
 
 Single-valued headers are a simplification rather than a loss. What a body part carries is the `Content-*` fields, which RFC 2045 allows at most once per entity; the HTTP headers that do legitimately repeat - `Accept`, `Set-Cookie`, `Via` - are list-valued and have no meaning on a part. A repeated name is malformed input, and modelling it does not read any better: aspnetcore's `MultipartSection.ContentType` is `StringValues.ToString()`, which joins with a comma, so a part with two `Content-Type` lines yields `text/plain, application/json` there. Last-wins at least yields a value that parses. Either way the repeats are bounded - a duplicate name does not grow the dictionary, so `HeadersCountLimit` never sees it, but `HeadersLengthLimit` counts the raw header lines.
 

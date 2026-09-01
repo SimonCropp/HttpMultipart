@@ -6,6 +6,7 @@
 namespace HttpMultipart;
 
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
@@ -23,6 +24,7 @@ sealed class MultipartReader :
     public const int DefaultHeadersLengthLimit = 1024 * 16;
 
     const int defaultBufferSize = 1024 * 4;
+    const int drainBufferSize = 1024 * 4;
 
     BufferedReadStream stream;
     MultipartBoundary boundary;
@@ -65,12 +67,12 @@ sealed class MultipartReader :
         };
 
         // Drain the prior section.
-        await currentStream.DrainAsync(cancel);
+        await Drain(currentStream, limit: null, cancel);
         // If we're at the end return null.
         if (currentStream.FinalBoundaryFound)
         {
             // There may be trailer data after the last boundary.
-            await stream.DrainAsync(HeadersLengthLimit, cancel);
+            await Drain(stream, HeadersLengthLimit, cancel);
             return null;
         }
 
@@ -132,6 +134,36 @@ sealed class MultipartReader :
     /// </remarks>
     public void Dispose() =>
         stream.Dispose();
+
+    // Upstream's StreamHelperExtensions.DrainAsync, inlined. As an extension on Stream it put a
+    // DrainAsync on every stream in a consuming project, and this reader is the only caller it ever had.
+    static async Task Drain(Stream stream, long? limit, CancellationToken cancel)
+    {
+        cancel.ThrowIfCancellationRequested();
+        var buffer = ArrayPool<byte>.Shared.Rent(drainBufferSize);
+        long total = 0;
+        try
+        {
+            var read = await stream.ReadAsync(buffer.AsMemory(), cancel);
+            while (read > 0)
+            {
+                // Not all streams support cancellation directly.
+                cancel.ThrowIfCancellationRequested();
+                if (limit.HasValue &&
+                    limit.GetValueOrDefault() - total < read)
+                {
+                    throw new InvalidDataException($"The stream exceeded the data limit {limit.GetValueOrDefault()}.");
+                }
+
+                total += read;
+                read = await stream.ReadAsync(buffer.AsMemory(), cancel);
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
 
     // The one member of Microsoft.Net.Http.Headers.HeaderUtilities the reader needed, inlined.
     static string RemoveQuotes(string value)

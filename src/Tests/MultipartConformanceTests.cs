@@ -90,7 +90,7 @@ public class MultipartConformanceTests
 
     // The epilogue is drained rather than returned, but only up to HeadersLengthLimit: an endless one
     // must not be pulled into memory on the way to reporting the end of the body. This is the only
-    // place the reader passes a limit to DrainAsync, and the short epilogue above is the other half of
+    // place the reader passes a limit when draining, and the short epilogue above is the other half of
     // the pair.
     [Test]
     public async Task AnEpilogueBeyondTheHeadersLengthLimitIsRefused()

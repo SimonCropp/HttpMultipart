@@ -64,9 +64,11 @@ projects restore a package that does not exist until pack has run.
 
 ## Divergences from upstream aspnetcore
 
-Three are API, and deliberate — single-valued `Headers`, inlined boundary de-quoting, no
-`BaseStreamOffset` — all to drop `Microsoft.Extensions.Primitives` and `Microsoft.Net.Http.Headers`.
-See `readme.md`.
+Four are API, and deliberate — single-valued `Headers`, inlined boundary de-quoting, no
+`BaseStreamOffset`, and no `StreamHelperExtensions`. The first three drop
+`Microsoft.Extensions.Primitives` and `Microsoft.Net.Http.Headers`; the last is because an extension
+on `Stream` in a source package lands on every stream in the consuming project, and `DrainAsync` had
+exactly one caller — it is now a private `MultipartReader.Drain`. See `readme.md`.
 
 Two are bug fixes to code upstream still carries. The 28 ported upstream tests pass unchanged either
 way, which is what says the fixes are behaviour-preserving:
