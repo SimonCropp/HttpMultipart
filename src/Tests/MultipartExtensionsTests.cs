@@ -91,7 +91,7 @@ public class MultipartExtensionsTests
     [Test]
     public async Task ReadAsStringAsyncDefaultsToUtf8()
     {
-        var section = Section("text/plain", Encoding.UTF8.GetBytes("héllo"));
+        var section = Section("text/plain", "héllo"u8.ToArray());
 
         Assert.That(await section.ReadAsStringAsync(), Is.EqualTo("héllo"));
     }
@@ -107,7 +107,7 @@ public class MultipartExtensionsTests
     [Test]
     public async Task ReadAsStringAsyncFallsBackToUtf8ForAnUnknownCharset()
     {
-        var section = Section("text/plain; charset=not-a-charset", Encoding.UTF8.GetBytes("héllo"));
+        var section = Section("text/plain; charset=not-a-charset", "héllo"u8.ToArray());
 
         Assert.That(await section.ReadAsStringAsync(), Is.EqualTo("héllo"));
     }
@@ -116,7 +116,7 @@ public class MultipartExtensionsTests
     [Test]
     public async Task ReadAsStringAsyncRefusesUtf7()
     {
-        var section = Section("text/plain; charset=utf-7", Encoding.UTF8.GetBytes("héllo"));
+        var section = Section("text/plain; charset=utf-7", "héllo"u8.ToArray());
 
         Assert.That(await section.ReadAsStringAsync(), Is.EqualTo("héllo"));
     }
@@ -127,7 +127,7 @@ public class MultipartExtensionsTests
         var section = new MultipartSection
         {
             Headers = new(StringComparer.OrdinalIgnoreCase),
-            Body = new MemoryStream(Encoding.UTF8.GetBytes("héllo"))
+            Body = new MemoryStream("héllo"u8.ToArray())
         };
 
         Assert.That(await section.ReadAsStringAsync(), Is.EqualTo("héllo"));

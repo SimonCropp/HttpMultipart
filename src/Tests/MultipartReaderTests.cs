@@ -9,101 +9,135 @@ public class MultipartReaderTests
     const string Boundary = "9051914041544843365972754266";
     const string BoundaryWithQuotes = @"""9051914041544843365972754266""";
 
-    // CRLF is required, so these cannot be multi-line C# strings: the line breaks on Linux are just LF.
-    const string OnePartBody =
-        "--9051914041544843365972754266\r\n" +
-        "Content-Disposition: form-data; name=\"text\"\r\n" +
-        "\r\n" +
-        "text default\r\n" +
-        "--9051914041544843365972754266--\r\n";
+    // Transport padding, which is allowed after a delimiter and has to be trimmed. Named rather than
+    // written as trailing whitespace inside the raw strings below, where trim_trailing_whitespace
+    // would silently eat it.
+    const string OpenPadding = "             ";
+    const string ClosePadding = "   ";
 
-    const string OnePartBodyTwoHeaders =
-        "--9051914041544843365972754266\r\n" +
-        "Content-Disposition: form-data; name=\"text\"\r\n" +
-        "Custom-header: custom-value\r\n" +
-        "\r\n" +
-        "text default\r\n" +
-        "--9051914041544843365972754266--\r\n";
+    // Written with plain newlines and converted once by Crlf, since the delimiter is defined in terms
+    // of CRLF. A body that ends at a delimiter has a blank line before the closing quotes; one that is
+    // deliberately truncated, or left without its final CRLF, does not.
+    static readonly string OnePartBody =
+        """
+        --9051914041544843365972754266
+        Content-Disposition: form-data; name="text"
 
-    const string OnePartBodyWithTrailingWhitespace =
-        "--9051914041544843365972754266             \r\n" +
-        "Content-Disposition: form-data; name=\"text\"\r\n" +
-        "\r\n" +
-        "text default\r\n" +
-        "--9051914041544843365972754266--\r\n";
+        text default
+        --9051914041544843365972754266--
+
+        """.Crlf();
+
+    static readonly string OnePartBodyTwoHeaders =
+        """
+        --9051914041544843365972754266
+        Content-Disposition: form-data; name="text"
+        Custom-header: custom-value
+
+        text default
+        --9051914041544843365972754266--
+
+        """.Crlf();
+
+    static readonly string OnePartBodyWithTrailingWhitespace =
+        $"""
+        --9051914041544843365972754266{OpenPadding}
+        Content-Disposition: form-data; name="text"
+
+        text default
+        --9051914041544843365972754266--
+
+        """.Crlf();
 
     // Non-compliant, but common: the last CRLF is left off.
-    const string OnePartBodyWithoutFinalCRLF =
-        "--9051914041544843365972754266\r\n" +
-        "Content-Disposition: form-data; name=\"text\"\r\n" +
-        "\r\n" +
-        "text default\r\n" +
-        "--9051914041544843365972754266--";
+    static readonly string OnePartBodyWithoutFinalCRLF =
+        """
+        --9051914041544843365972754266
+        Content-Disposition: form-data; name="text"
 
-    const string TwoPartBody =
-        "--9051914041544843365972754266\r\n" +
-        "Content-Disposition: form-data; name=\"text\"\r\n" +
-        "\r\n" +
-        "text default\r\n" +
-        "--9051914041544843365972754266\r\n" +
-        "Content-Disposition: form-data; name=\"file1\"; filename=\"a.txt\"\r\n" +
-        "Content-Type: text/plain\r\n" +
-        "\r\n" +
-        "Content of a.txt.\r\n" +
-        "\r\n" +
-        "--9051914041544843365972754266--\r\n";
+        text default
+        --9051914041544843365972754266--
+        """.Crlf();
 
-    const string TwoPartBodyWithUnicodeFileName =
-        "--9051914041544843365972754266\r\n" +
-        "Content-Disposition: form-data; name=\"text\"\r\n" +
-        "\r\n" +
-        "text default\r\n" +
-        "--9051914041544843365972754266\r\n" +
-        "Content-Disposition: form-data; name=\"file1\"; filename=\"a色.txt\"\r\n" +
-        "Content-Type: text/plain\r\n" +
-        "\r\n" +
-        "Content of a.txt.\r\n" +
-        "\r\n" +
-        "--9051914041544843365972754266--\r\n";
+    static readonly string TwoPartBody =
+        """
+        --9051914041544843365972754266
+        Content-Disposition: form-data; name="text"
 
-    const string ThreePartBody =
-        "--9051914041544843365972754266\r\n" +
-        "Content-Disposition: form-data; name=\"text\"\r\n" +
-        "\r\n" +
-        "text default\r\n" +
-        "--9051914041544843365972754266\r\n" +
-        "Content-Disposition: form-data; name=\"file1\"; filename=\"a.txt\"\r\n" +
-        "Content-Type: text/plain\r\n" +
-        "\r\n" +
-        "Content of a.txt.\r\n" +
-        "\r\n" +
-        "--9051914041544843365972754266\r\n" +
-        "Content-Disposition: form-data; name=\"file2\"; filename=\"a.html\"\r\n" +
-        "Content-Type: text/html\r\n" +
-        "\r\n" +
-        "<!DOCTYPE html><title>Content of a.html.</title>\r\n" +
-        "\r\n" +
-        "--9051914041544843365972754266--\r\n";
+        text default
+        --9051914041544843365972754266
+        Content-Disposition: form-data; name="file1"; filename="a.txt"
+        Content-Type: text/plain
 
-    const string TwoPartBodyIncompleteBuffer =
-        "--9051914041544843365972754266\r\n" +
-        "Content-Disposition: form-data; name=\"text\"\r\n" +
-        "\r\n" +
-        "text default\r\n" +
-        "--9051914041544843365972754266\r\n" +
-        "Content-Disposition: form-data; name=\"file1\"; filename=\"a.txt\"\r\n" +
-        "Content-Type: text/plain\r\n" +
-        "\r\n" +
-        "Content of a.txt.\r\n" +
-        "\r\n" +
-        "--9051914041544843365";
+        Content of a.txt.
 
-    const string BoundaryWithGarbage =
-        "--9051914041544843365972754266\r\n" +
-        "Content-Disposition: form-data; name=\"text\"\r\n" +
-        "\r\n" +
-        "text default\r\n" +
-        "--9051914041544843365972754266 garbage\r\n";
+        --9051914041544843365972754266--
+
+        """.Crlf();
+
+    static readonly string TwoPartBodyWithUnicodeFileName =
+        """
+        --9051914041544843365972754266
+        Content-Disposition: form-data; name="text"
+
+        text default
+        --9051914041544843365972754266
+        Content-Disposition: form-data; name="file1"; filename="a色.txt"
+        Content-Type: text/plain
+
+        Content of a.txt.
+
+        --9051914041544843365972754266--
+
+        """.Crlf();
+
+    static readonly string ThreePartBody =
+        """
+        --9051914041544843365972754266
+        Content-Disposition: form-data; name="text"
+
+        text default
+        --9051914041544843365972754266
+        Content-Disposition: form-data; name="file1"; filename="a.txt"
+        Content-Type: text/plain
+
+        Content of a.txt.
+
+        --9051914041544843365972754266
+        Content-Disposition: form-data; name="file2"; filename="a.html"
+        Content-Type: text/html
+
+        <!DOCTYPE html><title>Content of a.html.</title>
+
+        --9051914041544843365972754266--
+
+        """.Crlf();
+
+    // Truncated mid-delimiter, so no trailing newline.
+    static readonly string TwoPartBodyIncompleteBuffer =
+        """
+        --9051914041544843365972754266
+        Content-Disposition: form-data; name="text"
+
+        text default
+        --9051914041544843365972754266
+        Content-Disposition: form-data; name="file1"; filename="a.txt"
+        Content-Type: text/plain
+
+        Content of a.txt.
+
+        --9051914041544843365
+        """.Crlf();
+
+    static readonly string BoundaryWithGarbage =
+        """
+        --9051914041544843365972754266
+        Content-Disposition: form-data; name="text"
+
+        text default
+        --9051914041544843365972754266 garbage
+
+        """.Crlf();
 
     [Test]
     public async Task MultipartReader_ReadSinglePartBody_Success()
@@ -148,7 +182,11 @@ public class MultipartReaderTests
     [Test]
     public void MultipartReader_HeaderLineSpanningMultipleBuffers_EnforcesHeadersLengthLimit()
     {
-        var body = "--9051914041544843365972754266\r\n" + new string('a', 100_000);
+        var body =
+            $"""
+            --9051914041544843365972754266
+            {new string('a', 100_000)}
+            """.Crlf();
         var reader = new MultipartReader(Boundary, MakeStream(body));
 
         var exception = Assert.ThrowsAsync<InvalidDataException>(() => reader.ReadNextSectionAsync())!;
@@ -158,11 +196,15 @@ public class MultipartReaderTests
     [Test]
     public void MultipartReader_HeadersLengthExceeded_LargePreamble()
     {
-        var body = $"preamble {new string('a', 17000)}\r\n" +
-                   "--9051914041544843365972754266\r\n" +
-                   "\r\n" +
-                   "text default\r\n" +
-                   "--9051914041544843365972754266--\r\n";
+        var body =
+            $"""
+            preamble {new string('a', 17000)}
+            --9051914041544843365972754266
+
+            text default
+            --9051914041544843365972754266--
+
+            """.Crlf();
         var reader = new MultipartReader(Boundary, MakeStream(body));
 
         var exception = Assert.ThrowsAsync<InvalidDataException>(() => reader.ReadNextSectionAsync())!;
@@ -174,11 +216,15 @@ public class MultipartReaderTests
     [Test]
     public async Task MultipartReader_HeadersLengthLimitSettable_LargePreamblePasses()
     {
-        var body = $"preamble {new string('a', 100_000)}\r\n" +
-                   "--9051914041544843365972754266\r\n" +
-                   "\r\n" +
-                   "text default\r\n" +
-                   "--9051914041544843365972754266--\r\n";
+        var body =
+            $"""
+            preamble {new string('a', 100_000)}
+            --9051914041544843365972754266
+
+            text default
+            --9051914041544843365972754266--
+
+            """.Crlf();
         var reader = new MultipartReader(Boundary, MakeStream(body))
         {
             HeadersLengthLimit = 200_000
@@ -440,11 +486,14 @@ public class MultipartReaderTests
     public async Task MultipartReader_FinalBoundaryWithTrailingWhitespace_Success()
     {
         var body =
-            "--9051914041544843365972754266\r\n" +
-            "Content-Disposition: form-data; name=\"text\"\r\n" +
-            "\r\n" +
-            "text default\r\n" +
-            "--9051914041544843365972754266--   \r\n";
+            $"""
+            --9051914041544843365972754266
+            Content-Disposition: form-data; name="text"
+
+            text default
+            --9051914041544843365972754266--{ClosePadding}
+
+            """.Crlf();
         var reader = new MultipartReader(Boundary, MakeStream(body));
 
         var section = await ReadSection(reader);
@@ -458,15 +507,18 @@ public class MultipartReaderTests
     public async Task MultipartReader_IntermediateBoundaryWithTrailingData_ThrowsIOException()
     {
         var body =
-            "--9051914041544843365972754266\r\n" +
-            "Content-Disposition: form-data; name=\"text\"\r\n" +
-            "\r\n" +
-            "text default\r\n" +
-            "--9051914041544843365972754266 notwhitespace\r\n" +
-            "Content-Disposition: form-data; name=\"text2\"\r\n" +
-            "\r\n" +
-            "text2\r\n" +
-            "--9051914041544843365972754266--\r\n";
+            """
+            --9051914041544843365972754266
+            Content-Disposition: form-data; name="text"
+
+            text default
+            --9051914041544843365972754266 notwhitespace
+            Content-Disposition: form-data; name="text2"
+
+            text2
+            --9051914041544843365972754266--
+
+            """.Crlf();
         var reader = new MultipartReader(Boundary, MakeStream(body));
 
         var section = await ReadSection(reader);
@@ -480,14 +532,20 @@ public class MultipartReaderTests
     // A one-part body with the given raw bytes spliced into the middle of a header value.
     static MemoryStream MakeSplitHeaderStream(byte[] invalid)
     {
-        const string before =
-            "--9051914041544843365972754266\r\n" +
-            "Content-Disposition: form-data; name=\"text\" filename=\"a";
-        const string after =
-            ".txt\"\r\n" +
-            "\r\n" +
-            "text default\r\n" +
-            "--9051914041544843365972754266--\r\n";
+        // The two halves meet mid-header-value, so neither carries the newline at the splice.
+        var before =
+            """
+            --9051914041544843365972754266
+            Content-Disposition: form-data; name="text" filename="a
+            """.Crlf();
+        var after =
+            """
+            .txt"
+
+            text default
+            --9051914041544843365972754266--
+
+            """.Crlf();
 
         var stream = new MemoryStream();
         stream.Write(Encoding.UTF8.GetBytes(before));

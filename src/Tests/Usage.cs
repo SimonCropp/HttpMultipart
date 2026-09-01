@@ -98,15 +98,18 @@ public class Usage
     {
         const string boundary = "b1a2c3";
         var body =
-            $"--{boundary}\r\n" +
-            "Content-Type: text/plain\r\n" +
-            "\r\n" +
-            "first\r\n" +
-            $"--{boundary}\r\n" +
-            "Content-Type: text/plain\r\n" +
-            "\r\n" +
-            "second\r\n" +
-            $"--{boundary}--\r\n";
+            $"""
+            --{boundary}
+            Content-Type: text/plain
+
+            first
+            --{boundary}
+            Content-Type: text/plain
+
+            second
+            --{boundary}--
+
+            """.Crlf();
 
         var response = new HttpResponseMessage
         {

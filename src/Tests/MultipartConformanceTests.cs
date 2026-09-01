@@ -3,6 +3,11 @@
 /// deliberately differs from upstream. The payloads are written from the RFC rather than lifted from
 /// another implementation's suite.
 /// </summary>
+/// <remarks>
+/// The bodies are raw string literals converted by <see cref="WireExtensions.Crlf"/>, since the
+/// delimiter is defined in terms of CRLF. The one body that does not call it is the one testing what
+/// happens without CRLF.
+/// </remarks>
 [TestFixture]
 public class MultipartConformanceTests
 {
@@ -12,11 +17,14 @@ public class MultipartConformanceTests
     public async Task EmptyPartBodyReadsAsEmpty()
     {
         var reader = Read(
-            "--test-boundary\r\n" +
-            "Content-Type: text/plain\r\n" +
-            "\r\n" +
-            "\r\n" +
-            "--test-boundary--\r\n");
+            """
+            --test-boundary
+            Content-Type: text/plain
+
+
+            --test-boundary--
+
+            """);
 
         var section = await ReadSection(reader);
         Assert.That(section.ContentType, Is.EqualTo("text/plain"));
@@ -29,10 +37,13 @@ public class MultipartConformanceTests
     public async Task PartWithNoHeadersIsRead()
     {
         var reader = Read(
-            "--test-boundary\r\n" +
-            "\r\n" +
-            "data\r\n" +
-            "--test-boundary--\r\n");
+            """
+            --test-boundary
+
+            data
+            --test-boundary--
+
+            """);
 
         var section = await ReadSection(reader);
         Assert.That(section.Headers, Is.Empty);
@@ -45,11 +56,14 @@ public class MultipartConformanceTests
     public async Task PreambleIsDiscarded()
     {
         var reader = Read(
-            "this is a preamble a reader must ignore\r\n" +
-            "--test-boundary\r\n" +
-            "\r\n" +
-            "data\r\n" +
-            "--test-boundary--\r\n");
+            """
+            this is a preamble a reader must ignore
+            --test-boundary
+
+            data
+            --test-boundary--
+
+            """);
 
         var section = await ReadSection(reader);
         Assert.That(await Body(section), Is.EqualTo("data"));
@@ -59,11 +73,14 @@ public class MultipartConformanceTests
     public async Task EpilogueAfterTheCloseDelimiterIsDiscarded()
     {
         var reader = Read(
-            "--test-boundary\r\n" +
-            "\r\n" +
-            "data\r\n" +
-            "--test-boundary--\r\n" +
-            "this is an epilogue a reader must ignore\r\n");
+            """
+            --test-boundary
+
+            data
+            --test-boundary--
+            this is an epilogue a reader must ignore
+
+            """);
 
         var section = await ReadSection(reader);
         Assert.That(await Body(section), Is.EqualTo("data"));
@@ -74,7 +91,11 @@ public class MultipartConformanceTests
     [Test]
     public async Task BodyOfOnlyACloseDelimiterHasNoSections()
     {
-        var reader = Read("--test-boundary--\r\n");
+        var reader = Read(
+            """
+            --test-boundary--
+
+            """);
 
         Assert.That(await reader.ReadNextSectionAsync(), Is.Null);
     }
@@ -85,10 +106,13 @@ public class MultipartConformanceTests
     public async Task BoundaryTextMidLineIsContent()
     {
         var reader = Read(
-            "--test-boundary\r\n" +
-            "\r\n" +
-            "text--test-boundary more\r\n" +
-            "--test-boundary--\r\n");
+            """
+            --test-boundary
+
+            text--test-boundary more
+            --test-boundary--
+
+            """);
 
         var section = await ReadSection(reader);
         Assert.That(await Body(section), Is.EqualTo("text--test-boundary more"));
@@ -101,10 +125,13 @@ public class MultipartConformanceTests
     {
         var content = new string('x', 500);
         var stream = MakeStream(
-            "--test-boundary\r\n" +
-            "\r\n" +
-            content + "\r\n" +
-            "--test-boundary--\r\n");
+            $"""
+            --test-boundary
+
+            {content}
+            --test-boundary--
+
+            """.Crlf());
         var reader = new MultipartReader(Boundary, stream, bufferSize: Boundary.Length + 8);
 
         var section = await ReadSection(reader);
@@ -114,15 +141,21 @@ public class MultipartConformanceTests
     }
 
     // The delimiter is defined in terms of CRLF. A body using bare LF has no delimiter line at all, and
-    // the trailing content is reported rather than silently treated as a part.
+    // the trailing content is reported rather than silently treated as a part. This is the one body
+    // here that goes through Lf rather than Crlf.
     [Test]
     public void LineFeedOnlyDelimitersAreNotDelimiters()
     {
-        var reader = Read(
-            "--test-boundary\n" +
-            "\n" +
-            "data\n" +
-            "--test-boundary--\n");
+        var reader = new MultipartReader(
+            Boundary,
+            MakeStream(
+                """
+                --test-boundary
+
+                data
+                --test-boundary--
+
+                """.Lf()));
 
         Assert.ThrowsAsync<IOException>(() => reader.ReadNextSectionAsync());
     }
@@ -131,11 +164,14 @@ public class MultipartConformanceTests
     public async Task HeaderNamesAreCaseInsensitive()
     {
         var reader = Read(
-            "--test-boundary\r\n" +
-            "content-TYPE: text/plain\r\n" +
-            "\r\n" +
-            "data\r\n" +
-            "--test-boundary--\r\n");
+            """
+            --test-boundary
+            content-TYPE: text/plain
+
+            data
+            --test-boundary--
+
+            """);
 
         var section = await ReadSection(reader);
         Assert.That(section.ContentType, Is.EqualTo("text/plain"));
@@ -148,12 +184,15 @@ public class MultipartConformanceTests
     public async Task ARepeatedHeaderNameIsLastWins()
     {
         var reader = Read(
-            "--test-boundary\r\n" +
-            "X-Custom: one\r\n" +
-            "X-Custom: two\r\n" +
-            "\r\n" +
-            "data\r\n" +
-            "--test-boundary--\r\n");
+            """
+            --test-boundary
+            X-Custom: one
+            X-Custom: two
+
+            data
+            --test-boundary--
+
+            """);
 
         var section = await ReadSection(reader);
         Assert.That(section.Headers, Has.Count.EqualTo(1));
@@ -164,11 +203,14 @@ public class MultipartConformanceTests
     public async Task ContentLengthIsReadFromTheHeader()
     {
         var reader = Read(
-            "--test-boundary\r\n" +
-            "Content-Length: 4\r\n" +
-            "\r\n" +
-            "data\r\n" +
-            "--test-boundary--\r\n");
+            """
+            --test-boundary
+            Content-Length: 4
+
+            data
+            --test-boundary--
+
+            """);
 
         var section = await ReadSection(reader);
         Assert.That(section.ContentLength, Is.EqualTo(4));
@@ -179,11 +221,14 @@ public class MultipartConformanceTests
     public async Task AnUnusableContentLengthIsNull(string value)
     {
         var reader = Read(
-            "--test-boundary\r\n" +
-            $"Content-Length: {value}\r\n" +
-            "\r\n" +
-            "data\r\n" +
-            "--test-boundary--\r\n");
+            $"""
+            --test-boundary
+            Content-Length: {value}
+
+            data
+            --test-boundary--
+
+            """);
 
         var section = await ReadSection(reader);
         Assert.That(section.ContentLength, Is.Null);
@@ -194,10 +239,13 @@ public class MultipartConformanceTests
     public async Task BodyLengthLimitIsEnforced()
     {
         var reader = Read(
-            "--test-boundary\r\n" +
-            "\r\n" +
-            "text default\r\n" +
-            "--test-boundary--\r\n");
+            """
+            --test-boundary
+
+            text default
+            --test-boundary--
+
+            """);
         reader.BodyLengthLimit = 5;
 
         var section = await ReadSection(reader);
@@ -215,10 +263,13 @@ public class MultipartConformanceTests
         Assert.That(boundary, Has.Length.EqualTo(70));
 
         var stream = MakeStream(
-            $"--{boundary}\r\n" +
-            "\r\n" +
-            "data\r\n" +
-            $"--{boundary}--\r\n");
+            $"""
+            --{boundary}
+
+            data
+            --{boundary}--
+
+            """.Crlf());
         var reader = new MultipartReader(boundary, stream);
 
         var section = await ReadSection(reader);
@@ -226,7 +277,7 @@ public class MultipartConformanceTests
     }
 
     static MultipartReader Read(string body) =>
-        new(Boundary, MakeStream(body));
+        new(Boundary, MakeStream(body.Crlf()));
 
     static MemoryStream MakeStream(string text) =>
         new(Encoding.UTF8.GetBytes(text));

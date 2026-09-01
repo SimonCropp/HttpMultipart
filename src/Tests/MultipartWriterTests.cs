@@ -27,10 +27,22 @@ public class MultipartWriterTests
         Assert.That(
             Text(body),
             Is.EqualTo(
-                "--b\r\nContent-Type: application/x-ndjson\r\n\r\nrow1" +
-                "\r\n--b\r\nContent-Type: application/x-ndjson\r\n\r\nrow2" +
-                "\r\n--b\r\nContent-Type: application/x-ndjson\r\n\r\nrow3" +
-                "\r\n--b--\r\n"));
+                """
+                --b
+                Content-Type: application/x-ndjson
+
+                row1
+                --b
+                Content-Type: application/x-ndjson
+
+                row2
+                --b
+                Content-Type: application/x-ndjson
+
+                row3
+                --b--
+
+                """.Crlf()));
     }
 
     [Test]
@@ -44,12 +56,25 @@ public class MultipartWriterTests
         await body.WriteAsync("""{"ok":true}"""u8.ToArray());
         await writer.Terminate();
 
+        // A raw string applies no escapes, so the three content bytes are named and interpolated rather
+        // than left in the literal as unreadable control characters.
+        const string content = "\u0001\u0002\u0003";
         Assert.That(
             Text(body),
             Is.EqualTo(
-                "--b\r\nContent-Type: application/octet-stream\r\nContent-Length: 3\r\n\r\n\u0001\u0002\u0003" +
-                "\r\n--b\r\nContent-Type: application/json\r\n\r\n{\"ok\":true}" +
-                "\r\n--b--\r\n"));
+                $$"""
+                --b
+                Content-Type: application/octet-stream
+                Content-Length: 3
+
+                {{content}}
+                --b
+                Content-Type: application/json
+
+                {"ok":true}
+                --b--
+
+                """.Crlf()));
     }
 
     // Alternating types is the batch shape, and it must not serve one type's cached opening for the
@@ -71,10 +96,22 @@ public class MultipartWriterTests
         Assert.That(
             Text(body),
             Is.EqualTo(
-                "--b\r\nContent-Type: application/json\r\n\r\none" +
-                "\r\n--b\r\nContent-Type: text/plain\r\n\r\ntwo" +
-                "\r\n--b\r\nContent-Type: application/json\r\n\r\nthree" +
-                "\r\n--b--\r\n"));
+                """
+                --b
+                Content-Type: application/json
+
+                one
+                --b
+                Content-Type: text/plain
+
+                two
+                --b
+                Content-Type: application/json
+
+                three
+                --b--
+
+                """.Crlf()));
     }
 
     [Test]
