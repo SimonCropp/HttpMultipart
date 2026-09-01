@@ -36,7 +36,8 @@ jobs:
         id: login
         uses: NuGet/login@v1
         with:
-          user: ${{ secrets.NUGET_USER }}
+          # The nuget.org account the trusted publishing policy belongs to.
+          user: SimonCropp
       - name: Push to nuget.org
         run: >
           dotnet nuget push nugets/*.nupkg
