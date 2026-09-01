@@ -12,16 +12,18 @@ The reader is vendored from `dotnet/aspnetcore`'s `Microsoft.AspNetCore.WebUtili
 two package dependencies stripped out. It was extracted because `BlazorQL` and `Scry` each carried a
 private copy that had already started to drift.
 
-`BlazorQL` has been migrated: `src/BlazorQL/Fetchers/Multipart/` is gone and it references the
-package (0.1.1), with its boundary glue collapsed onto `TryGetMultipartBoundary`.
+Both consumers have been migrated to the package (0.1.1). `BlazorQL` deleted
+`src/BlazorQL/Fetchers/Multipart/` and collapsed its boundary glue onto `TryGetMultipartBoundary`.
+`Scry` deleted the six shared files from `src/Scry.Client/Multipart/` (keeping its own
+`MultipartResponse.cs`, now delegating to `TryGetMultipartBoundary` and `ReadAsBytesAsync`) and
+`src/Scry.Server/MultipartWriter.cs`, replaced by `ScryMultipart` — a few lines supplying the
+`ScryBinary` media type, boundary prefix and part content type to the package's writer. The package
+is referenced by both `Scry.Client` and `Scry.Server`, so `HttpMultipart.MultipartWriter` exists in
+each: `Scry.Tests` sees both through `InternalsVisibleTo` and must not name the type directly.
 
-**`Scry` has not been migrated yet.** When it happens it deletes the six shared files from
-`src/Scry.Client/Multipart/` (keeping its own `MultipartResponse.cs`) and `src/Scry.Server/
-MultipartWriter.cs`, then adds `<PackageReference Include="HttpMultipart" PrivateAssets="all" />`.
-Scry's `InternalsVisibleTo Scry.Explorer.Core` keeps working: source-only types compile into
-`Scry.Client` and stay internal to it. The API here is shaped so it needs no source edits beyond
-optionally collapsing its duplicated boundary/byte-reading glue onto `TryGetMultipartBoundary` and
-`ReadAsBytesAsync`.
+`GraphQL.Attachments` is a third consumer, migrated from `Microsoft.AspNet.WebApi.Client`'s
+`ReadAsMultipartAsync` — the package replaced that dependency outright. It buffers each section into
+an `HttpContent` because its `Attachment` API hands back streams the caller reads in any order.
 
 ## Build and test
 
