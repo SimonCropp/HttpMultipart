@@ -12,13 +12,15 @@ The reader is vendored from `dotnet/aspnetcore`'s `Microsoft.AspNetCore.WebUtili
 two package dependencies stripped out. It was extracted because `BlazorQL` and `Scry` each carried a
 private copy that had already started to drift.
 
-**Neither consumer has been migrated yet** — that waits on a nuget.org release. When it happens:
-`BlazorQL` deletes `src/BlazorQL/Fetchers/Multipart/`; `Scry` deletes the six shared files from
+`BlazorQL` has been migrated: `src/BlazorQL/Fetchers/Multipart/` is gone and it references the
+package (0.1.1), with its boundary glue collapsed onto `TryGetMultipartBoundary`.
+
+**`Scry` has not been migrated yet.** When it happens it deletes the six shared files from
 `src/Scry.Client/Multipart/` (keeping its own `MultipartResponse.cs`) and `src/Scry.Server/
-MultipartWriter.cs`. Both then add `<PackageReference Include="HttpMultipart" PrivateAssets="all" />`.
+MultipartWriter.cs`, then adds `<PackageReference Include="HttpMultipart" PrivateAssets="all" />`.
 Scry's `InternalsVisibleTo Scry.Explorer.Core` keeps working: source-only types compile into
-`Scry.Client` and stay internal to it. The API here is shaped so neither needs source edits beyond
-optionally collapsing their duplicated boundary/byte-reading glue onto `TryGetMultipartBoundary` and
+`Scry.Client` and stay internal to it. The API here is shaped so it needs no source edits beyond
+optionally collapsing its duplicated boundary/byte-reading glue onto `TryGetMultipartBoundary` and
 `ReadAsBytesAsync`.
 
 ## Build and test
