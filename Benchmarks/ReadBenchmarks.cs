@@ -25,6 +25,13 @@ public class ReadBenchmarks
     [Params(4 * 1024, 64 * 1024, 1024 * 1024)]
     public int BufferSize { get; set; }
 
+    /// <summary>
+    /// Disposing returns the read buffer to the pool. Undisposed is what every caller did before the
+    /// reader was disposable, and is why allocation here used to track <see cref="BufferSize"/>.
+    /// </summary>
+    [Params(true, false)]
+    public bool DisposeReader { get; set; }
+
     [GlobalSetup]
     public void Setup() =>
         (body, boundary) = Bodies.OnePart(partSize);
@@ -33,8 +40,18 @@ public class ReadBenchmarks
     public async Task<long> CopyTo()
     {
         var reader = new MultipartReader(boundary, new MemoryStream(body), BufferSize);
-        var section = await reader.ReadNextSectionAsync();
-        await section!.Body.CopyToAsync(System.IO.Stream.Null);
-        return section.Body.Length;
+        try
+        {
+            var section = await reader.ReadNextSectionAsync();
+            await section!.Body.CopyToAsync(System.IO.Stream.Null);
+            return section.Body.Length;
+        }
+        finally
+        {
+            if (DisposeReader)
+            {
+                reader.Dispose();
+            }
+        }
     }
 }

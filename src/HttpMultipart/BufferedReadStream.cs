@@ -27,10 +27,23 @@ sealed class BufferedReadStream :
     int bufferCount;
     bool disposed;
 
-    /// <summary>Creates a new stream.</summary>
+    readonly bool leaveOpen;
+
+    /// <summary>Creates a new stream, which disposes <paramref name="inner"/> along with itself.</summary>
     public BufferedReadStream(Stream inner, int bufferSize)
+        : this(inner, bufferSize, leaveOpen: false)
+    {
+    }
+
+    /// <summary>
+    /// Creates a new stream. With <paramref name="leaveOpen"/>, disposing returns the pooled buffer but
+    /// leaves <paramref name="inner"/> open — which is what lets a reader that does not own the stream
+    /// it was handed still return its buffer.
+    /// </summary>
+    public BufferedReadStream(Stream inner, int bufferSize, bool leaveOpen)
     {
         this.inner = inner;
+        this.leaveOpen = leaveOpen;
         bytePool = ArrayPool<byte>.Shared;
         buffer = bytePool.Rent(bufferSize);
     }
@@ -123,7 +136,8 @@ sealed class BufferedReadStream :
             disposed = true;
             bytePool.Return(buffer);
 
-            if (disposing)
+            if (disposing &&
+                !leaveOpen)
             {
                 inner.Dispose();
             }
@@ -148,6 +162,7 @@ sealed class BufferedReadStream :
     public override int Read(byte[] buffer, int offset, int count)
     {
         ValidateBufferArguments(buffer, offset, count);
+        CheckDisposed();
 
         // Drain buffer.
         if (bufferCount > 0)
@@ -170,6 +185,7 @@ sealed class BufferedReadStream :
     /// </remarks>
     public override int Read(Span<byte> buffer)
     {
+        CheckDisposed();
         // Drain buffer.
         if (bufferCount > 0)
         {
@@ -188,6 +204,7 @@ sealed class BufferedReadStream :
 
     public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken)
     {
+        CheckDisposed();
         // Drain buffer.
         if (bufferCount > 0)
         {
@@ -204,6 +221,7 @@ sealed class BufferedReadStream :
     /// <summary>Ensures that the buffer is not empty.</summary>
     public bool EnsureBuffered()
     {
+        CheckDisposed();
         if (bufferCount > 0)
         {
             return true;
@@ -218,6 +236,7 @@ sealed class BufferedReadStream :
     /// <summary>Ensures that the buffer is not empty.</summary>
     public async Task<bool> EnsureBufferedAsync(CancellationToken cancel)
     {
+        CheckDisposed();
         if (bufferCount > 0)
         {
             return true;
@@ -232,6 +251,7 @@ sealed class BufferedReadStream :
     /// <summary>Ensures that a minimum amount of buffered data is available.</summary>
     public bool EnsureBuffered(int minCount)
     {
+        CheckDisposed();
         if (minCount > buffer.Length)
         {
             throw new ArgumentOutOfRangeException(nameof(minCount), minCount, "The value must be smaller than the buffer size: " + buffer.Length);
@@ -264,6 +284,7 @@ sealed class BufferedReadStream :
     /// <summary>Ensures that a minimum amount of buffered data is available.</summary>
     public async Task<bool> EnsureBufferedAsync(int minCount, CancellationToken cancel)
     {
+        CheckDisposed();
         if (minCount > buffer.Length)
         {
             throw new ArgumentOutOfRangeException(nameof(minCount), minCount, "The value must be smaller than the buffer size: " + buffer.Length);

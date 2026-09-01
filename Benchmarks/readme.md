@@ -39,27 +39,33 @@ part** — the grown buffer and the returned array are alive at once — and to 
 since the content is transcoded to UTF-16 and then copied out of the builder. Neither helper is wrong;
 they are for parts you know are small, and this is the price of using one when you don't.
 
-### Buffer size — 16 MB part, `ReadBenchmarks`
+### Buffer size and disposal — 16 MB part, `ReadBenchmarks`
 
-| `bufferSize` | Mean | Allocated |
+| `bufferSize` | Undisposed | Disposed |
 | --- | --- | --- |
-| 4 KB (default) | **1.20 ms** | **6.9 KB** |
-| 64 KB | 4.17 ms | 66.9 KB |
-| 1 MB | 56.4 ms | 1,026.9 KB |
+| 4 KB (default) | 1.39 ms, 6.9 KB | **1.22 ms, 2.9 KB** |
+| 64 KB | 4.25 ms, 66.9 KB | 4.38 ms, **2.9 KB** |
+| 1 MB | 51.7 ms, 1,026.9 KB | 55.9 ms, **2.9 KB** |
 
-Raising `bufferSize` makes it **worse**, which is the opposite of what the per-call ceiling suggests —
-a single read can never return more than the internal buffer holds, so a bigger buffer really does mean
-fewer read calls.
+Two separate findings, and it took the benchmark to tell them apart.
 
-`Allocated` says why, and it is not the payload: it tracks `bufferSize` almost exactly.
-`MultipartReader` is not disposable, so the `BufferedReadStream` it owns is never disposed and its
-pooled array is never returned; every reader allocates a fresh one. At 4 KB that is noise. At 1 MB it is
-a large-object-heap allocation per reader, and the arm doing the fewest reads is 47× the slowest.
-This shape is inherited from `Microsoft.AspNetCore.WebUtilities`.
+**Disposing fixes the allocation completely.** Undisposed, `Allocated` tracks `bufferSize` almost
+exactly, and that is not the payload — it is the reader's own buffer, rented from `ArrayPool` and
+returned only on dispose. Disposed, it is 2.9 KB flat at every size. Before `MultipartReader` was
+`IDisposable` there was no way to get that back, which is still the shape upstream has.
 
-So the guidance is narrower than "raise `bufferSize` for throughput": leave it alone unless one reader
-consumes enough body to amortise an allocation of that size, and stay under 85 KB unless you mean to
-allocate on the LOH per reader.
+**It does not fix the time**, which is what makes the first explanation attractive and wrong: at 1 MB
+the arm allocating 2.9 KB is still 45× slower than the 4 KB default. The allocation was never the
+reason.
+
+Part of the real reason is visible in `MultipartReaderStream.ReadAsync`: `IndexOf` scans *all* buffered
+data looking for the boundary, but the read returns at most the caller's buffer — and
+`Stream.CopyToAsync` passes 81,920 bytes. Set the internal buffer above that and every read rescans the
+remainder it could not hand back. At 64 KB there is no rescan and it is still 3.5× the default, which
+is consistent with the buffer no longer fitting in cache, though that part is inference rather than
+measurement.
+
+Either way the guidance is the same: leave `bufferSize` alone, and dispose the reader.
 
 ### Per-section cost — `SectionBenchmarks`
 

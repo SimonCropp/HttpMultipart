@@ -13,7 +13,8 @@ using System.Threading.Tasks;
 
 // https://www.ietf.org/rfc/rfc2046.txt
 /// <summary>Reads multipart content from a <see cref="Stream"/>.</summary>
-sealed class MultipartReader
+sealed class MultipartReader :
+    IDisposable
 {
     /// <summary>The default value for <see cref="HeadersCountLimit"/>.</summary>
     public const int DefaultHeadersCountLimit = 16;
@@ -40,7 +41,9 @@ sealed class MultipartReader
             throw new ArgumentOutOfRangeException(nameof(bufferSize), bufferSize, "Insufficient buffer space, the buffer must be larger than the boundary: " + boundary);
         }
 
-        this.stream = new(stream, bufferSize);
+        // leaveOpen: the stream belongs to the caller. Disposing this reader returns the pooled
+        // buffer without closing what it was handed.
+        this.stream = new(stream, bufferSize, leaveOpen: true);
         this.boundary = new(RemoveQuotes(boundary));
     }
 
@@ -122,6 +125,18 @@ sealed class MultipartReader
 
         return headers;
     }
+
+    /// <summary>
+    /// Returns the pooled read buffer. The stream this reader was constructed over is left open — it
+    /// belongs to the caller.
+    /// </summary>
+    /// <remarks>
+    /// Optional, and skipping it is what every version before this one did: the buffer is then simply
+    /// garbage rather than returned, so a reader costs one allocation of its buffer size. Disposing
+    /// ends the life of every section this reader produced, so do it after the last one is read.
+    /// </remarks>
+    public void Dispose() =>
+        stream.Dispose();
 
     // The one member of Microsoft.Net.Http.Headers.HeaderUtilities the reader needed, inlined.
     static string RemoveQuotes(string value)

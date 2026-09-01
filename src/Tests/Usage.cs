@@ -15,7 +15,8 @@ public class Usage
         if (response.Content.TryGetMultipartBoundary(out var boundary))
         {
             await using var body = await response.Content.ReadAsStreamAsync();
-            var reader = new MultipartReader(boundary, body);
+            // Disposing returns the reader's pooled buffer; it leaves the body stream alone.
+            using var reader = new MultipartReader(boundary, body);
             while (await reader.ReadNextSectionAsync() is {} section)
             {
                 parts.Add(await section.ReadAsStringAsync());
@@ -36,7 +37,7 @@ public class Usage
 
         response.Content.TryGetMultipartBoundary("multipart/mixed", out var boundary);
         await using var body = await response.Content.ReadAsStreamAsync();
-        var reader = new MultipartReader(boundary!, body)
+        using var reader = new MultipartReader(boundary!, body)
         {
             // The transport bounds the whole body; this bounds any one part.
             BodyLengthLimit = 10 * 1024 * 1024

@@ -73,6 +73,12 @@ way, which is what says the fixes are behaviour-preserving:
 - `BufferedReadStream`'s `Position` setter keeps its seek arithmetic in `long`. Upstream casts the
   difference to `int`, so a backward seek of 2^32 on a seekable stream over 2 GB truncates to zero and
   silently moves nothing.
+- `MultipartReader` is `IDisposable`, and `BufferedReadStream` takes a `leaveOpen`. Upstream has
+  neither, so the read buffer it rents from `ArrayPool` is never returned and every reader allocates
+  one of its buffer size. Disposal is optional — an undisposed reader behaves exactly as it did — but
+  it ends the life of every section that reader produced, which is why the buffered read entry points
+  now carry a `CheckDisposed`: a returned array belongs to the pool, and reading it has to fail rather
+  than succeed quietly.
 
 ## Constraints that are easy to break
 
@@ -96,6 +102,8 @@ way, which is what says the fixes are behaviour-preserving:
   reader deliberately differs (single-valued headers, no `BaseStreamOffset`).
 - `MultipartRoundTripTests` — writer output fed back through the reader. Neither upstream repo has
   this, and it is what pins the two halves against each other.
+- `DisposalTests` — that disposing returns the buffer without closing the caller's stream, that a
+  section cannot be read afterwards, and that a second dispose does not return the same array twice.
 - `Usage.cs` — the readme's examples, as tests. `#region` names are snippet ids; building `Tests`
   regenerates the snippet regions in `readme.md`. Never hand-edit inside them.
 

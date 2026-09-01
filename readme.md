@@ -46,14 +46,15 @@ var parts = new List<string>();
 if (response.Content.TryGetMultipartBoundary(out var boundary))
 {
     await using var body = await response.Content.ReadAsStreamAsync();
-    var reader = new MultipartReader(boundary, body);
+    // Disposing returns the reader's pooled buffer; it leaves the body stream alone.
+    using var reader = new MultipartReader(boundary, body);
     while (await reader.ReadNextSectionAsync() is {} section)
     {
         parts.Add(await section.ReadAsStringAsync());
     }
 }
 ```
-<sup><a href='/src/Tests/Usage.cs#L12-L25' title='Snippet source file'>snippet source</a> | <a href='#snippet-read' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Tests/Usage.cs#L12-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-read' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 `ReadNextSectionAsync` is forward-only, and a section's `Body` is valid only until the next section is
@@ -68,7 +69,7 @@ read. See [Large payloads](#large-payloads) before using it on anything unbounde
 ```cs
 response.Content.TryGetMultipartBoundary("multipart/mixed", out var boundary);
 await using var body = await response.Content.ReadAsStreamAsync();
-var reader = new MultipartReader(boundary!, body)
+using var reader = new MultipartReader(boundary!, body)
 {
     // The transport bounds the whole body; this bounds any one part.
     BodyLengthLimit = 10 * 1024 * 1024
@@ -79,7 +80,7 @@ while (await reader.ReadNextSectionAsync() is {} section)
     Handle(section.ContentType, bytes);
 }
 ```
-<sup><a href='/src/Tests/Usage.cs#L35-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-readBinary' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Tests/Usage.cs#L36-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-readBinary' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -119,7 +120,7 @@ await writer.WritePart("application/octet-stream", new byte[] {1, 2, 3});
 
 await writer.Terminate();
 ```
-<sup><a href='/src/Tests/Usage.cs#L60-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-write' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Tests/Usage.cs#L61-L76' title='Snippet source file'>snippet source</a> | <a href='#snippet-write' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The delimiter's leading CRLF is written by the *next* part, or by the terminator — which is what keeps
@@ -141,7 +142,7 @@ await writer.WritePart("application/octet-stream", source, source.Length);
 
 await writer.Terminate();
 ```
-<sup><a href='/src/Tests/Usage.cs#L98-L108' title='Snippet source file'>snippet source</a> | <a href='#snippet-writeLarge' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Tests/Usage.cs#L99-L109' title='Snippet source file'>snippet source</a> | <a href='#snippet-writeLarge' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 `OpenPart(contentType, contentLength)` is the same thing split in two, for a caller who wants to write
@@ -182,11 +183,17 @@ Buffering to bytes costs roughly 2.7× the part, and to a string roughly 4×.
 thing bounding a part you go on to buffer. `Content-Length` is not that thing: it is advisory, it sizes
 the initial buffer and is capped, and it is never trusted for a read.
 
-**Leave `bufferSize` alone** unless you have measured otherwise. A single read never returns more than
-the internal buffer holds, so a larger one does mean fewer reads — but `MultipartReader` is not
-disposable, its pooled buffer is never returned, and every reader allocates one of that size. Raising
-it from 4 KB to 1 MB made a 16 MB part **47× slower** on the benchmark. Above 85 KB it is a
-large-object-heap allocation per reader.
+**Dispose the reader.** It rents its read buffer from `ArrayPool`, and disposing is what returns it —
+without that, every reader allocates a fresh one. Disposing takes a 16 MB read from 6.9 KB allocated to
+**2.88 KB, flat at any buffer size**. It leaves the stream you handed it open, and it ends the life of
+every section it produced, so do it after the last one is read. Skipping it is safe and is what the
+upstream shape does; it just costs an allocation per reader.
+
+**Leave `bufferSize` alone** unless you have measured otherwise. A larger buffer does mean fewer reads,
+but it was the *slowest* arm of every benchmark run — 16 MB took 1.2 ms at the 4 KB default and 56 ms
+at 1 MB. Part of that is visible in the code: a read scans all buffered data for the boundary but
+returns at most the caller's buffer, and `Stream.CopyToAsync` passes 81,920 bytes. Set the internal
+buffer above that and every read rescans the remainder it could not hand back.
 
 To write a large part, declare the length and stream the content rather than materialising it — the
 `WritePart(contentType, Stream, contentLength)` overload above allocates 759× less than handing over a
