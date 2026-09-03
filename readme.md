@@ -199,7 +199,7 @@ See [Benchmarks](Benchmarks/readme.md) for the full numbers and how to reproduce
 
 **`MimeKit`** implements MIME properly - nested multiparts, `Content-Transfer-Encoding` (base64, quoted-printable), RFC 2047 encoded words, folded headers, S/MIME and PGP. This package does none of that, deliberately: an HTTP multipart body is 8-bit and unfolded, so a part body is opaque bytes and a header line is `name: value`. If the payload is really MIME - mail, or anything carrying a transfer encoding - use MimeKit and accept a full MIME implementation plus its dependencies where this is roughly 1,300 lines of source.
 
-**`Microsoft.AspNet.WebApi.Client`**'s `HttpContent.ReadAsMultipartAsync` is the long-standing answer, and now mostly a legacy one: the package targets `netstandard2.0` at the newest, it brings `Newtonsoft.Json` and `Newtonsoft.Json.Bson` along for a multipart reader, and its default provider buffers every part into a `MemoryStream` before the caller sees any of it. `GraphQL.Attachments` moved off it onto this package.
+**`Microsoft.AspNet.WebApi.Client`**'s `HttpContent.ReadAsMultipartAsync` is the long-standing answer, and now mostly a legacy one: the package targets `netstandard2.0` at the newest, it brings `Newtonsoft.Json` and `Newtonsoft.Json.Bson` along for a multipart reader, and its default provider buffers every part into a `MemoryStream` before the caller sees any of it.
 
 
 ## Differences from Microsoft.AspNetCore.WebUtilities
