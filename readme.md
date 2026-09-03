@@ -172,6 +172,36 @@ To write a large part, declare the length and stream the content rather than mat
 See [Benchmarks](Benchmarks/readme.md) for the full numbers and how to reproduce them.
 
 
+## Alternatives
+
+| | Reads | Writes | Adds to the dependency graph |
+| --- | --- | --- | --- |
+| **HttpMultipart** | any `multipart/*`, a section at a time | any `multipart/*`, straight to a `Stream` | nothing - it ships source |
+| [`Microsoft.AspNetCore.WebUtilities`](https://www.nuget.org/packages/Microsoft.AspNetCore.WebUtilities) | any `multipart/*`, a section at a time | - | `Microsoft.Net.Http.Headers`, `Microsoft.Extensions.Primitives` |
+| `System.Net.Http.MultipartContent` | - | any `multipart/*`, one `HttpContent` per part | nothing - it is the BCL |
+| ASP.NET Core form binding (`IFormFile`) | `multipart/form-data` requests, buffered | - | nothing - it is the framework |
+| [`HttpMultipartParser`](https://www.nuget.org/packages/HttpMultipartParser) | `multipart/form-data` | - | `Microsoft.IO.RecyclableMemoryStream`, `System.Buffers` |
+| [`MimeKit`](https://www.nuget.org/packages/MimeKit) | all of MIME | all of MIME | `BouncyCastle.Cryptography`, `System.Security.Cryptography.Pkcs` |
+| [`Microsoft.AspNet.WebApi.Client`](https://www.nuget.org/packages/Microsoft.AspNet.WebApi.Client) | any `multipart/*`, buffered | one `HttpContent` per part | `Newtonsoft.Json`, `Newtonsoft.Json.Bson`, `System.Memory`, `System.Threading.Tasks.Extensions` |
+
+**`Microsoft.AspNetCore.WebUtilities`** is where this reader came from, and inside an ASP.NET Core app it is already there: `Microsoft.AspNetCore.WebUtilities.dll` sits in the shared framework alongside both of its dependencies, so `MultipartReader` there costs a `using` and nothing else. Use it there; what this package adds is the writer and the fixes below. Outside ASP.NET Core - a Blazor WebAssembly client, a console app, a library that does not want them - it is a `PackageReference` that puts two assemblies into the graph of everything downstream. Past the [four API differences](#differences-from-microsoftaspnetcorewebutilities), the reader here also carries fixes upstream does not. The ported upstream tests pass unchanged either way, so none of them changes how a well-formed body reads:
+
+* `BufferedReadStream` overrides `Read(Span<byte>)`. Upstream does not, and both of `MultipartReaderStream`'s read paths call exactly that, so every read there falls to the base `Stream` shim - a pooled array and a full extra copy of the payload, per read.
+* The boundary search scans only as far as a read could return, rather than over everything buffered. That is 3.8x on a 16 MB part read through a 64 KB buffer, where the internal buffer is larger than the caller's and the next read would otherwise repeat the search over what the last could not hand back.
+* `MultipartReader` is `IDisposable`, so the read buffer it rents from `ArrayPool` goes back. Upstream has no disposal, so every reader drops one of its buffer size - the difference between 6.9 KB and 2.88 KB allocated for a 16 MB read, and far more at a larger buffer size.
+* `BufferedReadStream`'s `Position` setter keeps its seek arithmetic in `long`. Upstream casts the difference to `int`, so a backward seek of 2^32 on a seekable stream over 2 GB truncates to zero and silently moves nothing.
+
+**`System.Net.Http.MultipartContent`** and `MultipartFormDataContent` are the BCL's writers, and they are the right thing when the destination is an `HttpClient` request: `MultipartFormDataContent` writes the `Content-Disposition: form-data; name=...` headers a browser-style upload needs, which `MultipartWriter` does not - it frames a part with `Content-Type`, and optionally `Content-Length`. The shapes differ as much as the output: a `MultipartContent` is a collection of `HttpContent`, one object per part, assembled and then serialized, where `MultipartWriter` writes framing into a `Stream` the caller already holds - which is what a server writing a response body has, and what lets a part be opened and streamed into without existing as an object first. Neither the BCL nor `HttpClient` reads multipart back.
+
+**ASP.NET Core form binding** - `HttpRequest.Form`, `IFormFile`, `[FromForm]` - is what a `multipart/form-data` endpoint should use. It is layered on the same reader, and adds what this package leaves out: `Content-Disposition` parsed into named fields and files, rather than the raw header value `MultipartSection.ContentDisposition` hands back. It buffers each section - in memory to `FormOptions.MemoryBufferThreshold`, 64 KB by default, and to a temp file past that - which is the trade for handing back a collection the action can bind against. It is request-side only, form-data only, and unavailable outside ASP.NET Core.
+
+**`HttpMultipartParser`** is form-data only as well, but standalone, so it is the closest alternative for reading a form outside ASP.NET Core. It hands back fields and files by name, either parsed up front or through `ParameterHandler` and `FileHandler` delegates for the streaming parser, rather than as a forward-only sequence of sections; it does not write. Prefer it where the payload is a form and named access is the point. Prefer this package if the payload is `multipart/mixed`, or anything else where a part is a content type rather than a named field.
+
+**`MimeKit`** implements MIME properly - nested multiparts, `Content-Transfer-Encoding` (base64, quoted-printable), RFC 2047 encoded words, folded headers, S/MIME and PGP. This package does none of that, deliberately: an HTTP multipart body is 8-bit and unfolded, so a part body is opaque bytes and a header line is `name: value`. If the payload is really MIME - mail, or anything carrying a transfer encoding - use MimeKit and accept a full MIME implementation plus its dependencies where this is roughly 1,300 lines of source.
+
+**`Microsoft.AspNet.WebApi.Client`**'s `HttpContent.ReadAsMultipartAsync` is the long-standing answer, and now mostly a legacy one: the package targets `netstandard2.0` at the newest, it brings `Newtonsoft.Json` and `Newtonsoft.Json.Bson` along for a multipart reader, and its default provider buffers every part into a `MemoryStream` before the caller sees any of it. `GraphQL.Attachments` moved off it onto this package.
+
+
 ## Differences from Microsoft.AspNetCore.WebUtilities
 
 The reader is behaviourally identical - the aspnetcore test suite passes against it unchanged - with four deliberate API differences:
