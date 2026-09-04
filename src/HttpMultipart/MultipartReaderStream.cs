@@ -97,6 +97,9 @@ sealed class MultipartReaderStream :
     public override void Write(byte[] buffer, int offset, int count) =>
         throw new NotSupportedException();
 
+    public override void Write(ReadOnlySpan<byte> buffer) =>
+        throw new NotSupportedException();
+
     public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
 
@@ -164,7 +167,15 @@ sealed class MultipartReaderStream :
         return read;
     }
 
-    public override int Read(byte[] buffer, int offset, int count)
+    public override int Read(byte[] buffer, int offset, int count) =>
+        Read(buffer.AsSpan(offset, count));
+
+    /// <remarks>
+    /// Overridden for the same reason as <see cref="BufferedReadStream.Read(Span{byte})"/>: the base
+    /// <see cref="Stream"/> shim would rent an array, call the <c>byte[]</c> overload and copy into
+    /// the span, so any consumer reading a section into a span would pay an extra copy per read.
+    /// </remarks>
+    public override int Read(Span<byte> buffer)
     {
         if (finished)
         {
@@ -178,7 +189,7 @@ sealed class MultipartReaderStream :
         }
 
         var bufferedData = innerStream.BufferedData;
-        var scan = ScanLength(bufferedData.Count, count);
+        var scan = ScanLength(bufferedData.Count, buffer.Length);
 
         var index = bufferedData.AsSpan(0, scan).IndexOf(boundary.BoundaryBytes);
         if (index >= 0)
@@ -187,7 +198,7 @@ sealed class MultipartReaderStream :
             if (index != 0)
             {
                 // Sync, it's already buffered.
-                var slice = buffer.AsSpan(offset, Math.Min(count, index));
+                var slice = buffer[..Math.Min(buffer.Length, index)];
 
                 var readAmount = innerStream.Read(slice);
                 return UpdatePosition(readAmount);
@@ -205,7 +216,7 @@ sealed class MultipartReaderStream :
             // We found a possible match, return any data before it.
             if (matchOffset > bufferedData.Offset)
             {
-                read = innerStream.Read(buffer, offset, Math.Min(count, matchOffset - bufferedData.Offset));
+                read = innerStream.Read(buffer[..Math.Min(buffer.Length, matchOffset - bufferedData.Offset)]);
                 return UpdatePosition(read);
             }
 
@@ -215,7 +226,7 @@ sealed class MultipartReaderStream :
         }
 
         // No possible boundary match within the buffered data, return the data from the buffer.
-        read = innerStream.Read(buffer, offset, Math.Min(count, bufferedData.Count));
+        read = innerStream.Read(buffer[..Math.Min(buffer.Length, bufferedData.Count)]);
         return UpdatePosition(read);
 
         static int ReadBoundary(MultipartReaderStream stream, int length)

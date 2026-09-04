@@ -75,7 +75,8 @@ way, which is what says the fixes are behaviour-preserving:
 
 - `BufferedReadStream` overrides `Read(Span<byte>)`. Upstream does not, and both read paths in
   `MultipartReaderStream` call exactly that, so every read there falls to the base `Stream` shim — a
-  pooled array and a full extra copy of the payload, per read.
+  pooled array and a full extra copy of the payload, per read. `MultipartReaderStream` overrides it
+  too, so a consumer reading a section into a span does not pay the same shim.
 - `BufferedReadStream`'s `Position` setter keeps its seek arithmetic in `long`. Upstream casts the
   difference to `int`, so a backward seek of 2^32 on a seekable stream over 2 GB truncates to zero and
   silently moves nothing.

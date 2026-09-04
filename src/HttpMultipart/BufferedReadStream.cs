@@ -153,6 +153,9 @@ sealed class BufferedReadStream :
     public override void Write(byte[] buffer, int offset, int count) =>
         inner.Write(buffer, offset, count);
 
+    public override void Write(ReadOnlySpan<byte> buffer) =>
+        inner.Write(buffer);
+
     public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken) =>
         inner.WriteAsync(buffer, cancellationToken);
 
@@ -162,19 +165,8 @@ sealed class BufferedReadStream :
     public override int Read(byte[] buffer, int offset, int count)
     {
         ValidateBufferArguments(buffer, offset, count);
-        CheckDisposed();
 
-        // Drain buffer.
-        if (bufferCount > 0)
-        {
-            var toCopy = Math.Min(bufferCount, count);
-            Buffer.BlockCopy(this.buffer, bufferOffset, buffer, offset, toCopy);
-            bufferOffset += toCopy;
-            bufferCount -= toCopy;
-            return toCopy;
-        }
-
-        return inner.Read(buffer, offset, count);
+        return Read(buffer.AsSpan(offset, count));
     }
 
     /// <remarks>
