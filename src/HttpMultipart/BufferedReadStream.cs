@@ -165,8 +165,16 @@ sealed class BufferedReadStream :
     public override int Read(byte[] buffer, int offset, int count)
     {
         ValidateBufferArguments(buffer, offset, count);
+        CheckDisposed();
 
-        return Read(buffer.AsSpan(offset, count));
+        if (bufferCount > 0)
+        {
+            return DrainBuffer(buffer.AsSpan(offset, count));
+        }
+
+        // Forward to the matching inner overload. Going through Read(Span<byte>) would fall back
+        // to Stream's rent-and-copy shim if the inner stream doesn't override it.
+        return inner.Read(buffer, offset, count);
     }
 
     /// <remarks>
@@ -178,17 +186,22 @@ sealed class BufferedReadStream :
     public override int Read(Span<byte> buffer)
     {
         CheckDisposed();
-        // Drain buffer.
+
         if (bufferCount > 0)
         {
-            var toCopy = Math.Min(bufferCount, buffer.Length);
-            this.buffer.AsSpan(bufferOffset, toCopy).CopyTo(buffer);
-            bufferOffset += toCopy;
-            bufferCount -= toCopy;
-            return toCopy;
+            return DrainBuffer(buffer);
         }
 
         return inner.Read(buffer);
+    }
+
+    int DrainBuffer(Span<byte> buffer)
+    {
+        var toCopy = Math.Min(bufferCount, buffer.Length);
+        this.buffer.AsSpan(bufferOffset, toCopy).CopyTo(buffer);
+        bufferOffset += toCopy;
+        bufferCount -= toCopy;
+        return toCopy;
     }
 
     public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
