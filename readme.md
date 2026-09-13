@@ -1,4 +1,4 @@
-# HttpMultipart
+# <img src='/src/icon.png' height='30px'> HttpMultipart
 
 [![Build status](https://github.com/SimonCropp/HttpMultipart/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/VerifyTests/HttpMultipart/actions/workflows/ci.yml)
 [![NuGet Status](https://img.shields.io/nuget/v/HttpMultipart.svg?label=HttpMultipart)](https://www.nuget.org/packages/HttpMultipart/)
