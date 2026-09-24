@@ -1,6 +1,6 @@
 # <img src='/src/icon.png' height='30px'> HttpMultipart
 
-[![Build status](https://github.com/SimonCropp/HttpMultipart/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/VerifyTests/HttpMultipart/actions/workflows/ci.yml)
+[![Build status](https://github.com/SimonCropp/HttpMultipart/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/SimonCropp/HttpMultipart/actions/workflows/build.yml)
 [![NuGet Status](https://img.shields.io/nuget/v/HttpMultipart.svg?label=HttpMultipart)](https://www.nuget.org/packages/HttpMultipart/)
 
 A source-only NuGet package for reading and writing HTTP multipart content.

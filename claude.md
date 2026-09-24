@@ -122,5 +122,5 @@ way, which is what says the fixes are behaviour-preserving:
 ## Releasing
 
 `<Version>` in `src/Directory.Build.props` is for local builds only. Pushing a tag runs
-`.github/workflows/release.yml`, which takes the version from the tag name (`1.2.3` or `v1.2.3`) and
+`.github/workflows/build.yml`, which takes the version from the tag name (`1.2.3` or `v1.2.3`) and
 publishes via nuget.org trusted publishing — no stored API key.
