@@ -8,7 +8,6 @@
 /// delimiter is defined in terms of CRLF. The one body that does not call it is the one testing what
 /// happens without CRLF.
 /// </remarks>
-[TestFixture]
 public class MultipartConformanceTests
 {
     const string boundary = "test-boundary";
@@ -27,10 +26,10 @@ public class MultipartConformanceTests
             """);
 
         var section = await ReadSection(reader);
-        Assert.That(section.ContentType, Is.EqualTo("text/plain"));
-        Assert.That(await Body(section), Is.Empty);
+        await Assert.That(section.ContentType).IsEqualTo("text/plain");
+        await Assert.That(await Body(section)).IsEmpty();
 
-        Assert.That(await reader.ReadNextSectionAsync(), Is.Null);
+        await Assert.That(await reader.ReadNextSectionAsync()).IsNull();
     }
 
     [Test]
@@ -46,8 +45,8 @@ public class MultipartConformanceTests
             """);
 
         var section = await ReadSection(reader);
-        Assert.That(section.Headers, Is.Empty);
-        Assert.That(await Body(section), Is.EqualTo("data"));
+        await Assert.That(section.Headers).IsEmpty();
+        await Assert.That(await Body(section)).IsEqualTo("data");
     }
 
     // "There appears to be room for additional information prior to the first boundary delimiter line
@@ -66,7 +65,7 @@ public class MultipartConformanceTests
             """);
 
         var section = await ReadSection(reader);
-        Assert.That(await Body(section), Is.EqualTo("data"));
+        await Assert.That(await Body(section)).IsEqualTo("data");
     }
 
     [Test]
@@ -83,9 +82,9 @@ public class MultipartConformanceTests
             """);
 
         var section = await ReadSection(reader);
-        Assert.That(await Body(section), Is.EqualTo("data"));
+        await Assert.That(await Body(section)).IsEqualTo("data");
 
-        Assert.That(await reader.ReadNextSectionAsync(), Is.Null);
+        await Assert.That(await reader.ReadNextSectionAsync()).IsNull();
     }
 
     // The epilogue is drained rather than returned, but only up to HeadersLengthLimit: an endless one
@@ -106,10 +105,10 @@ public class MultipartConformanceTests
             """);
 
         var section = await ReadSection(reader);
-        Assert.That(await Body(section), Is.EqualTo("data"));
+        await Assert.That(await Body(section)).IsEqualTo("data");
 
-        var exception = Assert.ThrowsAsync<InvalidDataException>(() => reader.ReadNextSectionAsync())!;
-        Assert.That(exception.Message, Is.EqualTo("The stream exceeded the data limit 16384."));
+        var exception = await Assert.ThrowsExactlyAsync<InvalidDataException>(() => reader.ReadNextSectionAsync());
+        await Assert.That(exception!.Message).IsEqualTo("The stream exceeded the data limit 16384.");
     }
 
     [Test]
@@ -121,7 +120,7 @@ public class MultipartConformanceTests
 
             """);
 
-        Assert.That(await reader.ReadNextSectionAsync(), Is.Null);
+        await Assert.That(await reader.ReadNextSectionAsync()).IsNull();
     }
 
     // A delimiter is only a delimiter at the start of a line. The same characters mid-line are content,
@@ -139,7 +138,7 @@ public class MultipartConformanceTests
             """);
 
         var section = await ReadSection(reader);
-        Assert.That(await Body(section), Is.EqualTo("text--test-boundary more"));
+        await Assert.That(await Body(section)).IsEqualTo("text--test-boundary more");
     }
 
     // With a buffer this small the body spans many refills and the delimiter itself straddles one, so
@@ -159,17 +158,18 @@ public class MultipartConformanceTests
         var reader = new MultipartReader(boundary, stream, bufferSize: boundary.Length + 8);
 
         var section = await ReadSection(reader);
-        Assert.That(await Body(section), Is.EqualTo(content));
+        await Assert.That(await Body(section)).IsEqualTo(content);
 
-        Assert.That(await reader.ReadNextSectionAsync(), Is.Null);
+        await Assert.That(await reader.ReadNextSectionAsync()).IsNull();
     }
 
     // A read looks for a boundary only as far as it could return, so with an internal buffer far larger
     // than the caller's these reads each scan a sliver of what is buffered and the boundary is found by
     // whichever call reaches it. The content is laced with near-misses — a prefix of the delimiter that
     // is not one — so a window that stopped a byte short would show up as content going missing.
-    [TestCase(97)]
-    [TestCase(1)]
+    [Test]
+    [Arguments(97)]
+    [Arguments(1)]
     public async Task ABoundaryBeyondTheCallersBufferIsFoundByTheCallThatReachesIt(int readSize)
     {
         var content = NearMissContent();
@@ -179,9 +179,9 @@ public class MultipartConformanceTests
             bufferSize: 64 * 1024);
 
         var section = await ReadSection(reader);
-        Assert.That(await Drain(section, readSize), Is.EqualTo(content));
+        await Assert.That(await Drain(section, readSize)).IsEqualTo(content);
 
-        Assert.That(await reader.ReadNextSectionAsync(), Is.Null);
+        await Assert.That(await reader.ReadNextSectionAsync()).IsNull();
     }
 
     // The same through the synchronous read path, which has its own copy of the scan.
@@ -205,8 +205,8 @@ public class MultipartConformanceTests
             read.Write(buffer, 0, count);
         }
 
-        Assert.That(Encoding.UTF8.GetString(read.ToArray()), Is.EqualTo(content));
-        Assert.That(await reader.ReadNextSectionAsync(), Is.Null);
+        await Assert.That(Encoding.UTF8.GetString(read.ToArray())).IsEqualTo(content);
+        await Assert.That(await reader.ReadNextSectionAsync()).IsNull();
     }
 
     static string NearMissContent() =>
@@ -239,7 +239,7 @@ public class MultipartConformanceTests
     // the trailing content is reported rather than silently treated as a part. This is the one body
     // here that goes through Lf rather than Crlf.
     [Test]
-    public void LineFeedOnlyDelimitersAreNotDelimiters()
+    public async Task LineFeedOnlyDelimitersAreNotDelimiters()
     {
         var reader = new MultipartReader(
             boundary,
@@ -252,7 +252,7 @@ public class MultipartConformanceTests
 
                 """.Lf()));
 
-        Assert.ThrowsAsync<IOException>(() => reader.ReadNextSectionAsync());
+        await Assert.ThrowsExactlyAsync<IOException>(() => reader.ReadNextSectionAsync());
     }
 
     [Test]
@@ -269,8 +269,8 @@ public class MultipartConformanceTests
             """);
 
         var section = await ReadSection(reader);
-        Assert.That(section.ContentType, Is.EqualTo("text/plain"));
-        Assert.That(section.Headers!["Content-Type"], Is.EqualTo("text/plain"));
+        await Assert.That(section.ContentType).IsEqualTo("text/plain");
+        await Assert.That(section.Headers!["Content-Type"]).IsEqualTo("text/plain");
     }
 
     // Where aspnetcore accumulates a repeated header into a StringValues, this reader keeps headers
@@ -290,8 +290,8 @@ public class MultipartConformanceTests
             """);
 
         var section = await ReadSection(reader);
-        Assert.That(section.Headers, Has.Count.EqualTo(1));
-        Assert.That(section.Headers!["X-Custom"], Is.EqualTo("two"));
+        await Assert.That(section.Headers).Count().IsEqualTo(1);
+        await Assert.That(section.Headers!["X-Custom"]).IsEqualTo("two");
     }
 
     [Test]
@@ -308,11 +308,12 @@ public class MultipartConformanceTests
             """);
 
         var section = await ReadSection(reader);
-        Assert.That(section.ContentLength, Is.EqualTo(4));
+        await Assert.That(section.ContentLength).IsEqualTo(4);
     }
 
-    [TestCase("not-a-number")]
-    [TestCase("-1")]
+    [Test]
+    [Arguments("not-a-number")]
+    [Arguments("-1")]
     public async Task AnUnusableContentLengthIsNull(string value)
     {
         var reader = Read(
@@ -326,7 +327,7 @@ public class MultipartConformanceTests
             """);
 
         var section = await ReadSection(reader);
-        Assert.That(section.ContentLength, Is.Null);
+        await Assert.That(section.ContentLength).IsNull();
     }
 
     // Not covered upstream: the per-section body limit the transport cannot enforce for the caller.
@@ -345,9 +346,9 @@ public class MultipartConformanceTests
 
         var section = await ReadSection(reader);
 
-        var exception = Assert.ThrowsAsync<InvalidDataException>(
-            () => section.Body.CopyToAsync(new MemoryStream()))!;
-        Assert.That(exception.Message, Is.EqualTo("Multipart body length limit 5 exceeded."));
+        var exception = await Assert.ThrowsExactlyAsync<InvalidDataException>(
+            () => section.Body.CopyToAsync(new MemoryStream()));
+        await Assert.That(exception!.Message).IsEqualTo("Multipart body length limit 5 exceeded.");
     }
 
     // RFC 2046 allows 70 characters from a set wider than the hex most senders use.
@@ -355,7 +356,7 @@ public class MultipartConformanceTests
     public async Task ABoundaryOfMaximumLengthAndCharacterSetIsRead()
     {
         var boundary = "0'()+_,-./:=?abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234";
-        Assert.That(boundary, Has.Length.EqualTo(70));
+        await Assert.That(boundary).Length().IsEqualTo(70);
 
         var stream = MakeStream(
             $"""
@@ -368,7 +369,7 @@ public class MultipartConformanceTests
         var reader = new MultipartReader(boundary, stream);
 
         var section = await ReadSection(reader);
-        Assert.That(await Body(section), Is.EqualTo("data"));
+        await Assert.That(await Body(section)).IsEqualTo("data");
     }
 
     static MultipartReader Read(string body) =>
@@ -380,7 +381,7 @@ public class MultipartConformanceTests
     static async Task<MultipartSection> ReadSection(MultipartReader reader)
     {
         var section = await reader.ReadNextSectionAsync();
-        Assert.That(section, Is.Not.Null);
+        await Assert.That(section).IsNotNull();
         return section!;
     }
 

@@ -1,69 +1,68 @@
-[TestFixture]
 public class MultipartExtensionsTests
 {
     [Test]
-    public void BoundaryIsFoundOnTheContentType()
+    public async Task BoundaryIsFoundOnTheContentType()
     {
         var content = Content("multipart/mixed; boundary=abc123");
 
-        Assert.That(content.TryGetMultipartBoundary(out var boundary), Is.True);
-        Assert.That(boundary, Is.EqualTo("abc123"));
+        await Assert.That(content.TryGetMultipartBoundary(out var boundary)).IsTrue();
+        await Assert.That(boundary).IsEqualTo("abc123");
     }
 
     // The reader de-quotes the boundary itself, so a quoted one is passed on as it arrived.
     [Test]
-    public void AQuotedBoundaryIsPassedOnQuoted()
+    public async Task AQuotedBoundaryIsPassedOnQuoted()
     {
         var content = Content("multipart/mixed; boundary=\"abc123\"");
 
-        Assert.That(content.TryGetMultipartBoundary(out var boundary), Is.True);
-        Assert.That(boundary, Is.EqualTo("\"abc123\""));
+        await Assert.That(content.TryGetMultipartBoundary(out var boundary)).IsTrue();
+        await Assert.That(boundary).IsEqualTo("\"abc123\"");
     }
 
     [Test]
-    public void TheBoundaryParameterNameIsCaseInsensitive()
+    public async Task TheBoundaryParameterNameIsCaseInsensitive()
     {
         var content = Content("multipart/mixed; BOUNDARY=abc123");
 
-        Assert.That(content.TryGetMultipartBoundary(out var boundary), Is.True);
-        Assert.That(boundary, Is.EqualTo("abc123"));
+        await Assert.That(content.TryGetMultipartBoundary(out var boundary)).IsTrue();
+        await Assert.That(boundary).IsEqualTo("abc123");
     }
 
     [Test]
-    public void NoContentTypeIsNoBoundary()
+    public async Task NoContentTypeIsNoBoundary()
     {
         var content = new ByteArrayContent([]);
         content.Headers.ContentType = null;
 
-        Assert.That(content.TryGetMultipartBoundary(out var boundary), Is.False);
-        Assert.That(boundary, Is.Null);
+        await Assert.That(content.TryGetMultipartBoundary(out var boundary)).IsFalse();
+        await Assert.That(boundary).IsNull();
     }
 
     [Test]
-    public void AContentTypeWithoutABoundaryIsNoBoundary()
+    public async Task AContentTypeWithoutABoundaryIsNoBoundary()
     {
         var content = Content("multipart/mixed");
 
-        Assert.That(content.TryGetMultipartBoundary(out var boundary), Is.False);
-        Assert.That(boundary, Is.Null);
+        await Assert.That(content.TryGetMultipartBoundary(out var boundary)).IsFalse();
+        await Assert.That(boundary).IsNull();
     }
 
     [Test]
-    public void AMatchingMediaTypeYieldsTheBoundary()
+    public async Task AMatchingMediaTypeYieldsTheBoundary()
     {
         var content = Content("multipart/mixed; boundary=abc123");
 
-        Assert.That(content.TryGetMultipartBoundary("MULTIPART/MIXED", out var boundary), Is.True);
-        Assert.That(boundary, Is.EqualTo("abc123"));
+        await Assert.That(content.TryGetMultipartBoundary("MULTIPART/MIXED", out var boundary)).IsTrue();
+        await Assert.That(boundary).IsEqualTo("abc123");
     }
 
     [Test]
-    public void AMismatchedMediaTypeYieldsNothing()
+    public async Task AMismatchedMediaTypeYieldsNothing()
     {
         var content = Content("multipart/mixed; boundary=abc123");
 
-        Assert.That(content.TryGetMultipartBoundary("multipart/related", out var boundary), Is.False);
-        Assert.That(boundary, Is.Null);
+        await Assert.That(content.TryGetMultipartBoundary("multipart/related", out var boundary)).IsFalse();
+        await Assert.That(boundary).IsNull();
     }
 
     [Test]
@@ -71,7 +70,7 @@ public class MultipartExtensionsTests
     {
         var section = Section("application/octet-stream", [1, 2, 3, 0, 255]);
 
-        Assert.That(await section.ReadAsBytesAsync(), Is.EqualTo(new byte[] {1, 2, 3, 0, 255}));
+        await Assert.That(await section.ReadAsBytesAsync()).IsEquivalentTo(new byte[] {1, 2, 3, 0, 255}, CollectionOrdering.Matching);
     }
 
     // Content-Length only sizes the buffer. A body longer than it claims is still read whole.
@@ -81,7 +80,7 @@ public class MultipartExtensionsTests
         var section = Section("application/octet-stream", [1, 2, 3, 4, 5]);
         section.Headers!["Content-Length"] = "2";
 
-        Assert.That(await section.ReadAsBytesAsync(), Is.EqualTo(new byte[] {1, 2, 3, 4, 5}));
+        await Assert.That(await section.ReadAsBytesAsync()).IsEquivalentTo(new byte[] {1, 2, 3, 4, 5}, CollectionOrdering.Matching);
     }
 
     // Content-Length sizes a buffer and nothing else. A part declaring two gigabytes over a three-byte
@@ -92,18 +91,18 @@ public class MultipartExtensionsTests
         var section = Section("application/octet-stream", [1, 2, 3]);
         section.Headers!["Content-Length"] = "2147483647";
 
-        Assert.That(await section.ReadAsBytesAsync(), Is.EqualTo(new byte[] {1, 2, 3}));
+        await Assert.That(await section.ReadAsBytesAsync()).IsEquivalentTo(new byte[] {1, 2, 3}, CollectionOrdering.Matching);
     }
 
     // Parsed as an int this would read as null, which is indistinguishable from a part declaring
     // nothing at all.
     [Test]
-    public void ContentLengthIsA64BitQuantity()
+    public async Task ContentLengthIsA64BitQuantity()
     {
         var section = Section("application/octet-stream", []);
         section.Headers!["Content-Length"] = "3000000000";
 
-        Assert.That(section.ContentLength, Is.EqualTo(3_000_000_000L));
+        await Assert.That(section.ContentLength).IsEqualTo(3_000_000_000L);
     }
 
     [Test]
@@ -111,7 +110,7 @@ public class MultipartExtensionsTests
     {
         var section = Section("text/plain", "héllo"u8.ToArray());
 
-        Assert.That(await section.ReadAsStringAsync(), Is.EqualTo("héllo"));
+        await Assert.That(await section.ReadAsStringAsync()).IsEqualTo("héllo");
     }
 
     [Test]
@@ -119,7 +118,7 @@ public class MultipartExtensionsTests
     {
         var section = Section("text/plain; charset=iso-8859-1", [0x68, 0xE9, 0x6C, 0x6C, 0x6F]);
 
-        Assert.That(await section.ReadAsStringAsync(), Is.EqualTo("héllo"));
+        await Assert.That(await section.ReadAsStringAsync()).IsEqualTo("héllo");
     }
 
     [Test]
@@ -127,7 +126,7 @@ public class MultipartExtensionsTests
     {
         var section = Section("text/plain; charset=not-a-charset", "héllo"u8.ToArray());
 
-        Assert.That(await section.ReadAsStringAsync(), Is.EqualTo("héllo"));
+        await Assert.That(await section.ReadAsStringAsync()).IsEqualTo("héllo");
     }
 
     // UTF-7 is obsolete and unsafe to decode, so it is treated as absent rather than honoured.
@@ -136,7 +135,7 @@ public class MultipartExtensionsTests
     {
         var section = Section("text/plain; charset=utf-7", "héllo"u8.ToArray());
 
-        Assert.That(await section.ReadAsStringAsync(), Is.EqualTo("héllo"));
+        await Assert.That(await section.ReadAsStringAsync()).IsEqualTo("héllo");
     }
 
     [Test]
@@ -148,7 +147,7 @@ public class MultipartExtensionsTests
             Body = new MemoryStream("héllo"u8.ToArray())
         };
 
-        Assert.That(await section.ReadAsStringAsync(), Is.EqualTo("héllo"));
+        await Assert.That(await section.ReadAsStringAsync()).IsEqualTo("héllo");
     }
 
     static ByteArrayContent Content(string contentType)

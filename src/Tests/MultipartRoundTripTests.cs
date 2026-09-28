@@ -4,7 +4,6 @@
 /// that a delimiter's leading CRLF belongs to the delimiter, not to the part before it, is only
 /// observable as a reader handing back content that is byte-exact.
 /// </summary>
-[TestFixture]
 public class MultipartRoundTripTests
 {
     [Test]
@@ -32,7 +31,7 @@ public class MultipartRoundTripTests
 
         await writer.Terminate();
 
-        Assert.That(await ReadBack(body, writer.Boundary), Is.EqualTo(parts));
+        await Assert.That(await ReadBack(body, writer.Boundary)).IsEquivalentTo(parts, CollectionOrdering.Matching);
     }
 
     [Test]
@@ -55,14 +54,14 @@ public class MultipartRoundTripTests
         var reader = new MultipartReader(writer.Boundary, body);
 
         var section = await ReadSection(reader);
-        Assert.That(section.ContentLength, Is.EqualTo(first.Length));
-        Assert.That(await section.ReadAsBytesAsync(), Is.EqualTo(first));
+        await Assert.That(section.ContentLength).IsEqualTo(first.Length);
+        await Assert.That(await section.ReadAsBytesAsync()).IsEquivalentTo(first, CollectionOrdering.Matching);
 
         section = await ReadSection(reader);
-        Assert.That(section.ContentLength, Is.EqualTo(second.Length));
-        Assert.That(await section.ReadAsBytesAsync(), Is.EqualTo(second));
+        await Assert.That(section.ContentLength).IsEqualTo(second.Length);
+        await Assert.That(await section.ReadAsBytesAsync()).IsEquivalentTo(second, CollectionOrdering.Matching);
 
-        Assert.That(await reader.ReadNextSectionAsync(), Is.Null);
+        await Assert.That(await reader.ReadNextSectionAsync()).IsNull();
     }
 
     // The shape a mixed response travels in: raw binary parts in wire order, then the JSON that
@@ -81,14 +80,14 @@ public class MultipartRoundTripTests
         var reader = new MultipartReader(writer.Boundary, body);
 
         var section = await ReadSection(reader);
-        Assert.That(section.ContentType, Is.EqualTo("application/octet-stream"));
-        Assert.That(await section.ReadAsBytesAsync(), Is.EqualTo(new byte[] {7, 7, 7}));
+        await Assert.That(section.ContentType).IsEqualTo("application/octet-stream");
+        await Assert.That(await section.ReadAsBytesAsync()).IsEquivalentTo(new byte[] {7, 7, 7}, CollectionOrdering.Matching);
 
         section = await ReadSection(reader);
-        Assert.That(section.ContentType, Is.EqualTo("application/json"));
-        Assert.That(await section.ReadAsStringAsync(), Is.EqualTo("""{"ok":true}"""));
+        await Assert.That(section.ContentType).IsEqualTo("application/json");
+        await Assert.That(await section.ReadAsStringAsync()).IsEqualTo("""{"ok":true}""");
 
-        Assert.That(await reader.ReadNextSectionAsync(), Is.Null);
+        await Assert.That(await reader.ReadNextSectionAsync()).IsNull();
     }
 
     // The large-part path end to end: neither half holds the content in memory, and the length the
@@ -111,10 +110,10 @@ public class MultipartRoundTripTests
         var reader = new MultipartReader(writer.Boundary, body);
 
         var section = await ReadSection(reader);
-        Assert.That(section.ContentLength, Is.EqualTo(content.Length));
-        Assert.That(await section.ReadAsBytesAsync(), Is.EqualTo(content));
+        await Assert.That(section.ContentLength).IsEqualTo(content.Length);
+        await Assert.That(await section.ReadAsBytesAsync()).IsEquivalentTo(content, CollectionOrdering.Matching);
 
-        Assert.That(await reader.ReadNextSectionAsync(), Is.Null);
+        await Assert.That(await reader.ReadNextSectionAsync()).IsNull();
     }
 
     [Test]
@@ -124,7 +123,7 @@ public class MultipartRoundTripTests
         var writer = MultipartWriter.Create(body);
         await writer.Terminate();
 
-        Assert.That(await ReadBack(body, writer.Boundary), Is.Empty);
+        await Assert.That(await ReadBack(body, writer.Boundary)).IsEmpty();
     }
 
     // A buffer barely larger than the boundary forces the reader to carry partial delimiter matches
@@ -144,9 +143,9 @@ public class MultipartRoundTripTests
         var reader = new MultipartReader(writer.Boundary, body, bufferSize: writer.Boundary.Length + 8);
 
         var section = await ReadSection(reader);
-        Assert.That(await section.ReadAsStringAsync(), Is.EqualTo(content));
+        await Assert.That(await section.ReadAsStringAsync()).IsEqualTo(content);
 
-        Assert.That(await reader.ReadNextSectionAsync(), Is.Null);
+        await Assert.That(await reader.ReadNextSectionAsync()).IsNull();
     }
 
     static async Task<List<string>> ReadBack(MemoryStream body, string boundary)
@@ -165,7 +164,7 @@ public class MultipartRoundTripTests
     static async Task<MultipartSection> ReadSection(MultipartReader reader)
     {
         var section = await reader.ReadNextSectionAsync();
-        Assert.That(section, Is.Not.Null);
+        await Assert.That(section).IsNotNull();
         return section!;
     }
 }

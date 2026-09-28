@@ -1,4 +1,3 @@
-[TestFixture]
 public class Usage
 {
     [Test]
@@ -22,7 +21,7 @@ public class Usage
 
         #endregion
 
-        Assert.That(parts, Is.EqualTo(["first", "second"]));
+        await Assert.That(parts).IsEquivalentTo(["first", "second"], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -47,7 +46,7 @@ public class Usage
 
         #endregion
 
-        Assert.That(handled, Has.Count.EqualTo(2));
+        await Assert.That(handled).Count().IsEqualTo(2);
     }
 
     [Test]
@@ -75,14 +74,10 @@ public class Usage
         // Asserted in pieces rather than byte-for-byte: the binary part's content is three control
         // bytes, and MultipartWriterTests already pins the exact framing.
         var written = Encoding.UTF8.GetString(stream.ToArray());
-        Assert.That(contentType, Is.EqualTo($"multipart/mixed; boundary={writer.Boundary}"));
-        Assert.That(
-            written,
-            Does.StartWith($"--{writer.Boundary}\r\nContent-Type: application/json\r\n\r\n{{\"ok\":true}}"));
-        Assert.That(
-            written,
-            Does.Contain("Content-Type: application/octet-stream\r\nContent-Length: 3\r\n\r\n"));
-        Assert.That(written, Does.EndWith($"\r\n--{writer.Boundary}--\r\n"));
+        await Assert.That(contentType).IsEqualTo($"multipart/mixed; boundary={writer.Boundary}");
+        await Assert.That(written).StartsWith($"--{writer.Boundary}\r\nContent-Type: application/json\r\n\r\n{{\"ok\":true}}");
+        await Assert.That(written).Contains("Content-Type: application/octet-stream\r\nContent-Length: 3\r\n\r\n");
+        await Assert.That(written).EndsWith($"\r\n--{writer.Boundary}--\r\n");
     }
 
     [Test]
@@ -108,8 +103,8 @@ public class Usage
         stream.Seek(0, SeekOrigin.Begin);
         var reader = new MultipartReader(writer.Boundary, stream);
         var section = await reader.ReadNextSectionAsync();
-        Assert.That(section!.ContentLength, Is.EqualTo(content.Length));
-        Assert.That(await section.ReadAsBytesAsync(), Is.EqualTo(content));
+        await Assert.That(section!.ContentLength).IsEqualTo(content.Length);
+        await Assert.That(await section.ReadAsBytesAsync()).IsEquivalentTo(content, CollectionOrdering.Matching);
     }
 
     readonly List<string> handled = [];

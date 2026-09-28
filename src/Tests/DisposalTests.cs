@@ -3,7 +3,6 @@
 /// makes disposal observable: the buffer belongs to the pool afterwards, so anything still reading
 /// through it has to fail rather than quietly read an array someone else now owns.
 /// </summary>
-[TestFixture]
 public class DisposalTests
 {
     const string boundary = "test-boundary";
@@ -16,11 +15,11 @@ public class DisposalTests
         using (var reader = new MultipartReader(boundary, inner))
         {
             var section = await reader.ReadNextSectionAsync();
-            Assert.That(section, Is.Not.Null);
+            await Assert.That(section).IsNotNull();
             await section!.Body.CopyToAsync(Stream.Null);
         }
 
-        Assert.That(inner.CanRead, Is.True);
+        await Assert.That(inner.CanRead).IsTrue();
     }
 
     [Test]
@@ -28,27 +27,27 @@ public class DisposalTests
     {
         var reader = new MultipartReader(boundary, new MemoryStream(Body()));
         var section = await reader.ReadNextSectionAsync();
-        Assert.That(section, Is.Not.Null);
+        await Assert.That(section).IsNotNull();
 
         reader.Dispose();
 
-        Assert.ThrowsAsync<ObjectDisposedException>(() => section!.Body.CopyToAsync(Stream.Null));
+        await Assert.ThrowsExactlyAsync<ObjectDisposedException>(() => section!.Body.CopyToAsync(Stream.Null));
     }
 
     // Returning the same array to the pool twice would hand it out twice. The guard is a field rather
     // than anything the caller has to get right, so a stray second dispose has to be harmless.
     [Test]
-    public void DisposingTwiceReturnsTheBufferOnce()
+    public async Task DisposingTwiceReturnsTheBufferOnce()
     {
         var reader = new MultipartReader(boundary, new MemoryStream(Body()));
 
         reader.Dispose();
 
-        Assert.DoesNotThrow(reader.Dispose);
+        reader.Dispose();
     }
 
     [Test]
-    public void DisposingABufferedReadStreamDisposesTheStreamItWraps()
+    public async Task DisposingABufferedReadStreamDisposesTheStreamItWraps()
     {
         var inner = new MemoryStream(Body());
 
@@ -56,11 +55,11 @@ public class DisposalTests
         {
         }
 
-        Assert.That(inner.CanRead, Is.False);
+        await Assert.That(inner.CanRead).IsFalse();
     }
 
     [Test]
-    public void LeaveOpenKeepsTheWrappedStreamOpen()
+    public async Task LeaveOpenKeepsTheWrappedStreamOpen()
     {
         var inner = new MemoryStream(Body());
 
@@ -68,7 +67,7 @@ public class DisposalTests
         {
         }
 
-        Assert.That(inner.CanRead, Is.True);
+        await Assert.That(inner.CanRead).IsTrue();
     }
 
     static byte[] Body() =>

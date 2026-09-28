@@ -4,7 +4,6 @@
 /// cached opening is the same framing an uncached one produces, and that the leading CRLF still
 /// belongs to the delimiter rather than to the part before it.
 /// </summary>
-[TestFixture]
 public class MultipartWriterTests
 {
     [Test]
@@ -22,9 +21,7 @@ public class MultipartWriterTests
         await body.WriteAsync("row3"u8.ToArray());
         await writer.Terminate();
 
-        Assert.That(
-            Text(body),
-            Is.EqualTo(
+        await Assert.That(Text(body)).IsEqualTo(
                 """
                 --b
                 Content-Type: application/x-ndjson
@@ -40,7 +37,7 @@ public class MultipartWriterTests
                 row3
                 --b--
 
-                """.Crlf()));
+                """.Crlf());
     }
 
     [Test]
@@ -57,9 +54,7 @@ public class MultipartWriterTests
         // A raw string applies no escapes, so the three content bytes are named and interpolated rather
         // than left in the literal as unreadable control characters.
         const string content = "\u0001\u0002\u0003";
-        Assert.That(
-            Text(body),
-            Is.EqualTo(
+        await Assert.That(Text(body)).IsEqualTo(
                 $$"""
                 --b
                 Content-Type: application/octet-stream
@@ -72,7 +67,7 @@ public class MultipartWriterTests
                 {"ok":true}
                 --b--
 
-                """.Crlf()));
+                """.Crlf());
     }
 
     // Alternating types is the batch shape, and it must not serve one type's cached opening for the
@@ -91,9 +86,7 @@ public class MultipartWriterTests
         await body.WriteAsync("three"u8.ToArray());
         await writer.Terminate();
 
-        Assert.That(
-            Text(body),
-            Is.EqualTo(
+        await Assert.That(Text(body)).IsEqualTo(
                 """
                 --b
                 Content-Type: application/json
@@ -109,7 +102,7 @@ public class MultipartWriterTests
                 three
                 --b--
 
-                """.Crlf()));
+                """.Crlf());
     }
 
     [Test]
@@ -122,9 +115,7 @@ public class MultipartWriterTests
         await body.WriteAsync("hello"u8.ToArray());
         await writer.Terminate();
 
-        Assert.That(
-            Text(body),
-            Is.EqualTo(
+        await Assert.That(Text(body)).IsEqualTo(
                 """
                 --b
                 Content-Type: application/octet-stream
@@ -133,7 +124,7 @@ public class MultipartWriterTests
                 hello
                 --b--
 
-                """.Crlf()));
+                """.Crlf());
     }
 
     [Test]
@@ -146,9 +137,7 @@ public class MultipartWriterTests
         await writer.WritePart("text/plain", content, content.Length);
         await writer.Terminate();
 
-        Assert.That(
-            Text(body),
-            Is.EqualTo(
+        await Assert.That(Text(body)).IsEqualTo(
                 """
                 --b
                 Content-Type: text/plain
@@ -157,7 +146,7 @@ public class MultipartWriterTests
                 hello
                 --b--
 
-                """.Crlf()));
+                """.Crlf());
     }
 
     // Content-Length differs per part, so a length-carrying part can neither serve from nor fill the
@@ -179,9 +168,7 @@ public class MultipartWriterTests
         await body.WriteAsync("three"u8.ToArray());
         await writer.Terminate();
 
-        Assert.That(
-            Text(body),
-            Is.EqualTo(
+        await Assert.That(Text(body)).IsEqualTo(
                 """
                 --b
                 Content-Type: text/plain
@@ -202,35 +189,35 @@ public class MultipartWriterTests
                 three
                 --b--
 
-                """.Crlf()));
+                """.Crlf());
     }
 
     [Test]
-    public void ContentTypeCarriesTheBoundary()
+    public async Task ContentTypeCarriesTheBoundary()
     {
         var writer = new MultipartWriter(new MemoryStream(), "b", "multipart/related");
 
-        Assert.That(writer.Boundary, Is.EqualTo("b"));
-        Assert.That(writer.ContentType, Is.EqualTo("multipart/related; boundary=b"));
+        await Assert.That(writer.Boundary).IsEqualTo("b");
+        await Assert.That(writer.ContentType).IsEqualTo("multipart/related; boundary=b");
     }
 
     [Test]
-    public void CreateDefaultsToMultipartMixed()
+    public async Task CreateDefaultsToMultipartMixed()
     {
         var writer = MultipartWriter.Create(new MemoryStream());
 
-        Assert.That(writer.ContentType, Is.EqualTo($"multipart/mixed; boundary={writer.Boundary}"));
+        await Assert.That(writer.ContentType).IsEqualTo($"multipart/mixed; boundary={writer.Boundary}");
     }
 
     [Test]
-    public void CreateMakesAFreshBoundaryBehindTheGivenPrefix()
+    public async Task CreateMakesAFreshBoundaryBehindTheGivenPrefix()
     {
         var first = MultipartWriter.Create(new MemoryStream(), boundaryPrefix: "part-");
         var second = MultipartWriter.Create(new MemoryStream(), boundaryPrefix: "part-");
 
-        Assert.That(first.Boundary, Does.StartWith("part-"));
-        Assert.That(second.Boundary, Does.StartWith("part-"));
-        Assert.That(first.Boundary, Is.Not.EqualTo(second.Boundary));
+        await Assert.That(first.Boundary).StartsWith("part-");
+        await Assert.That(second.Boundary).StartsWith("part-");
+        await Assert.That(first.Boundary).IsNotEqualTo(second.Boundary);
     }
 
     [Test]
@@ -241,7 +228,7 @@ public class MultipartWriterTests
 
         await writer.Terminate();
 
-        Assert.That(Text(body), Is.EqualTo("--b--\r\n"));
+        await Assert.That(Text(body)).IsEqualTo("--b--\r\n");
     }
 
     static string Text(MemoryStream body) =>

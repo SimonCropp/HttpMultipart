@@ -9,3 +9,4 @@ consume-packages/
 /src/.idea
 BenchmarkDotNet.Artifacts/
 *.lnk
+TestResults/
