@@ -98,6 +98,14 @@ static class MultipartSectionExtensions
         return await reader.ReadToEndAsync(cancel);
     }
 
+    /// <summary>
+    /// Whether the section's <c>Content-Type</c> names <paramref name="mediaType"/>, compared without
+    /// case and ignoring any parameters. A section with no parseable <c>Content-Type</c> names none.
+    /// </summary>
+    public static bool HasMediaType(this MultipartSection section, string mediaType) =>
+        MediaTypeHeaderValue.TryParse(section.ContentType, out var parsed) &&
+        string.Equals(parsed.MediaType, mediaType, StringComparison.OrdinalIgnoreCase);
+
     static Encoding EncodingFor(MultipartSection section)
     {
         if (!MediaTypeHeaderValue.TryParse(section.ContentType, out var mediaType) ||

@@ -66,6 +66,29 @@ public class MultipartExtensionsTests
     }
 
     [Test]
+    [Arguments("application/octet-stream", true)]
+    [Arguments("Application/Octet-Stream", true)]
+    [Arguments("application/octet-stream; name=photo.png", true)]
+    [Arguments("application/json", false)]
+    [Arguments("application/octet-streamx", false)]
+    [Arguments("not a media type", false)]
+    public async Task HasMediaTypeComparesTheMediaTypeOnly(string contentType, bool expected)
+    {
+        var section = Section(contentType, []);
+
+        await Assert.That(section.HasMediaType("application/octet-stream")).IsEqualTo(expected);
+    }
+
+    [Test]
+    public async Task HasMediaTypeIsFalseWithoutAContentType()
+    {
+        var section = Section("application/octet-stream", []);
+        section.Headers!.Remove("Content-Type");
+
+        await Assert.That(section.HasMediaType("application/octet-stream")).IsFalse();
+    }
+
+    [Test]
     public async Task ReadAsBytesAsyncReadsTheWholeBody()
     {
         var section = Section("application/octet-stream", [1, 2, 3, 0, 255]);

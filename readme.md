@@ -87,6 +87,8 @@ var bytes = await section.ReadAsBytesStrictAsync(maxDeclaredLength: 64 * 1024 * 
 <sup><a href='/src/Tests/Usage.cs#L62-L68' title='Snippet source file'>snippet source</a> | <a href='#snippet-readBinaryStrict' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+To tell parts apart by type, `section.HasMediaType("application/octet-stream")` compares the media type its `Content-Type` names, ignoring case and parameters, so `application/octet-stream; name=photo.png` matches too.
+
 
 ### Limits
 
