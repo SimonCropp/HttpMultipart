@@ -83,6 +83,72 @@ public class MultipartExtensionsTests
         await Assert.That(await section.ReadAsBytesAsync()).IsEquivalentTo(new byte[] {1, 2, 3, 4, 5}, CollectionOrdering.Matching);
     }
 
+    // A body shorter than it claims comes back at its real length, not padded to the claim.
+    [Test]
+    public async Task ReadAsBytesAsyncReturnsAShortBodyAsIs()
+    {
+        var section = Section("application/octet-stream", [1, 2, 3]);
+        section.Headers!["Content-Length"] = "10";
+
+        await Assert.That(await section.ReadAsBytesAsync()).IsEquivalentTo(new byte[] {1, 2, 3}, CollectionOrdering.Matching);
+    }
+
+    [Test]
+    public async Task ReadAsBytesAsyncReadsABodyAsLongAsItClaims()
+    {
+        var section = Section("application/octet-stream", [1, 2, 3]);
+        section.Headers!["Content-Length"] = "3";
+
+        await Assert.That(await section.ReadAsBytesAsync()).IsEquivalentTo(new byte[] {1, 2, 3}, CollectionOrdering.Matching);
+    }
+
+    [Test]
+    public async Task ReadAsBytesStrictAsyncReadsABodyAsLongAsItClaims()
+    {
+        var section = Section("application/octet-stream", [1, 2, 3]);
+        section.Headers!["Content-Length"] = "3";
+
+        await Assert.That(await section.ReadAsBytesStrictAsync()).IsEquivalentTo(new byte[] {1, 2, 3}, CollectionOrdering.Matching);
+    }
+
+    [Test]
+    public async Task ReadAsBytesStrictAsyncRejectsAShortBody()
+    {
+        var section = Section("application/octet-stream", [1, 2, 3]);
+        section.Headers!["Content-Length"] = "10";
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => section.ReadAsBytesStrictAsync());
+        await Assert.That(exception!.Message).Contains("ended after 3 of the 10 bytes");
+    }
+
+    [Test]
+    public async Task ReadAsBytesStrictAsyncRejectsALongBody()
+    {
+        var section = Section("application/octet-stream", [1, 2, 3, 4, 5]);
+        section.Headers!["Content-Length"] = "2";
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => section.ReadAsBytesStrictAsync());
+        await Assert.That(exception!.Message).Contains("more than the 2 bytes");
+    }
+
+    // Past the ceiling the claim is not worth an allocation, so it is not worth a check either.
+    [Test]
+    public async Task ReadAsBytesStrictAsyncDoesNotCheckAClaimPastTheCeiling()
+    {
+        var section = Section("application/octet-stream", [1, 2, 3]);
+        section.Headers!["Content-Length"] = "10";
+
+        await Assert.That(await section.ReadAsBytesStrictAsync(maxDeclaredLength: 5)).IsEquivalentTo(new byte[] {1, 2, 3}, CollectionOrdering.Matching);
+    }
+
+    [Test]
+    public async Task ReadAsBytesStrictAsyncReadsAnUndeclaredBody()
+    {
+        var section = Section("application/octet-stream", [1, 2, 3]);
+
+        await Assert.That(await section.ReadAsBytesStrictAsync()).IsEquivalentTo(new byte[] {1, 2, 3}, CollectionOrdering.Matching);
+    }
+
     // Content-Length sizes a buffer and nothing else. A part declaring two gigabytes over a three-byte
     // body must not have that allocated, and must still read back what is actually there.
     [Test]
