@@ -37,12 +37,15 @@ static class MultipartSectionExtensions
         // Content-Length sizes the initial buffer and nothing else: it is never trusted for the read,
         // and it is capped because it comes from the part itself. Uncapped, a part declaring two
         // gigabytes over a one-byte body would have that allocated before a byte was read.
-        if (section.ContentLength is not { } claimed || claimed <= 0 || claimed > ceiling)
+        var body = section.Body;
+        if (section.ContentLength is not { } claimed ||
+            claimed <= 0 ||
+            claimed > ceiling)
         {
             using var growing = section.ContentLength is { } length
                 ? new MemoryStream((int) Math.Min(length, maxPresize))
                 : new MemoryStream();
-            await section.Body.CopyToAsync(growing, cancel);
+            await body.CopyToAsync(growing, cancel);
             return growing.ToArray();
         }
 
@@ -50,7 +53,7 @@ static class MultipartSectionExtensions
         // case - a part that is as long as it says - costs one allocation and no copy.
         var declared = (int) claimed;
         var exact = new byte[declared];
-        var read = await section.Body.ReadAtLeastAsync(exact, declared, throwOnEndOfStream: false, cancel);
+        var read = await body.ReadAtLeastAsync(exact, declared, throwOnEndOfStream: false, cancel);
         if (read < declared)
         {
             if (strict)
@@ -65,7 +68,7 @@ static class MultipartSectionExtensions
         // One more read stands where the boundary should. Anything but the end means the part is
         // longer than it declared, and the rest is read the growing way behind what is already in hand.
         var probe = new byte[1];
-        if (await section.Body.ReadAsync(probe, cancel) == 0)
+        if (await body.ReadAsync(probe, cancel) == 0)
         {
             return exact;
         }
@@ -79,7 +82,7 @@ static class MultipartSectionExtensions
         using var overflow = new MemoryStream(declared * 2);
         overflow.Write(exact);
         overflow.Write(probe);
-        await section.Body.CopyToAsync(overflow, cancel);
+        await body.CopyToAsync(overflow, cancel);
         return overflow.ToArray();
     }
 
