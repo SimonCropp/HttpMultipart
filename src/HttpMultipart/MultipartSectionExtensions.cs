@@ -13,16 +13,74 @@ static class MultipartSectionExtensions
     const int maxPresize = 1024 * 1024;
 
     /// <summary>Reads the section body to a byte array.</summary>
-    public static async Task<byte[]> ReadAsBytesAsync(this MultipartSection section, CancellationToken cancel = default)
+    public static Task<byte[]> ReadAsBytesAsync(this MultipartSection section, CancellationToken cancel = default) =>
+        ReadBytes(section, maxPresize, strict: false, cancel);
+
+    /// <summary>
+    /// Reads the section body to a byte array, and throws <see cref="InvalidDataException"/> if a
+    /// declared <c>Content-Length</c> does not match the body.
+    /// </summary>
+    /// <param name="section">The section to read.</param>
+    /// <param name="maxDeclaredLength">
+    /// The largest <c>Content-Length</c> allocated up front and checked. A part declaring more, or
+    /// nothing, is read without a check, as <see cref="ReadAsBytesAsync"/> reads it.
+    /// </param>
+    /// <param name="cancel">The cancellation token.</param>
+    public static Task<byte[]> ReadAsBytesStrictAsync(
+        this MultipartSection section,
+        int maxDeclaredLength = maxPresize,
+        CancellationToken cancel = default) =>
+        ReadBytes(section, maxDeclaredLength, strict: true, cancel);
+
+    static async Task<byte[]> ReadBytes(MultipartSection section, int ceiling, bool strict, CancellationToken cancel)
     {
         // Content-Length sizes the initial buffer and nothing else: it is never trusted for the read,
         // and it is capped because it comes from the part itself. Uncapped, a part declaring two
         // gigabytes over a one-byte body would have that allocated before a byte was read.
-        using var memory = section.ContentLength is { } length
-            ? new MemoryStream((int) Math.Min(length, maxPresize))
-            : new MemoryStream();
-        await section.Body.CopyToAsync(memory, cancel);
-        return memory.ToArray();
+        if (section.ContentLength is not { } claimed || claimed <= 0 || claimed > ceiling)
+        {
+            using var growing = section.ContentLength is { } length
+                ? new MemoryStream((int) Math.Min(length, maxPresize))
+                : new MemoryStream();
+            await section.Body.CopyToAsync(growing, cancel);
+            return growing.ToArray();
+        }
+
+        // A declared length within the cap is read straight into an array of that size, so the common
+        // case - a part that is as long as it says - costs one allocation and no copy.
+        var declared = (int) claimed;
+        var exact = new byte[declared];
+        var read = await section.Body.ReadAtLeastAsync(exact, declared, throwOnEndOfStream: false, cancel);
+        if (read < declared)
+        {
+            if (strict)
+            {
+                throw new InvalidDataException(
+                    $"A multipart part ended after {read} of the {declared} bytes its Content-Length declared.");
+            }
+
+            return exact.AsSpan(0, read).ToArray();
+        }
+
+        // One more read stands where the boundary should. Anything but the end means the part is
+        // longer than it declared, and the rest is read the growing way behind what is already in hand.
+        var probe = new byte[1];
+        if (await section.Body.ReadAsync(probe, cancel) == 0)
+        {
+            return exact;
+        }
+
+        if (strict)
+        {
+            throw new InvalidDataException(
+                $"A multipart part carried more than the {declared} bytes its Content-Length declared.");
+        }
+
+        using var overflow = new MemoryStream(declared * 2);
+        overflow.Write(exact);
+        overflow.Write(probe);
+        await section.Body.CopyToAsync(overflow, cancel);
+        return overflow.ToArray();
     }
 
     /// <summary>
