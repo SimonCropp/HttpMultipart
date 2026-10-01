@@ -5,9 +5,16 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Net.Http;
 
-/// <summary>Extension methods for finding the multipart boundary of an <see cref="HttpContent"/>.</summary>
+/// <summary>Extension methods for the media type and multipart boundary of an <see cref="HttpContent"/>.</summary>
 static class MultipartContentExtensions
 {
+    /// <summary>
+    /// Whether the content's <c>Content-Type</c> names <paramref name="mediaType"/>, compared without
+    /// case and ignoring any parameters. Content with no <c>Content-Type</c> names none.
+    /// </summary>
+    public static bool HasMediaType(this HttpContent content, string mediaType) =>
+        string.Equals(content.Headers.ContentType?.MediaType, mediaType, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
     /// The <c>boundary</c> parameter of the content type, where the content declares one. The value is
     /// passed on as it arrived — <see cref="MultipartReader"/> strips the quotes from a quoted boundary
@@ -35,7 +42,7 @@ static class MultipartContentExtensions
     /// </summary>
     public static bool TryGetMultipartBoundary(this HttpContent content, string mediaType, [NotNullWhen(true)] out string? boundary)
     {
-        if (!string.Equals(content.Headers.ContentType?.MediaType, mediaType, StringComparison.OrdinalIgnoreCase))
+        if (!content.HasMediaType(mediaType))
         {
             boundary = null;
             return false;
