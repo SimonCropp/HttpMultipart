@@ -75,6 +75,18 @@ while (await reader.ReadNextSectionAsync() is {} section)
 <sup><a href='/src/Tests/Usage.cs#L32-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-readBinary' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+`ReadAsBytesStrictAsync` reads the same way, but treats a declared `Content-Length` as a promise: a part that ends short of it, or runs past it, throws `InvalidDataException` instead of being trimmed or read on. Only a declaration up to `maxDeclaredLength` (default 1 MiB) is checked; a part that declares nothing, or more, is read as `ReadAsBytesAsync` reads it:
+
+<!-- snippet: readBinaryStrict -->
+<a id='snippet-readBinaryStrict'></a>
+```cs
+// Throws InvalidDataException when a declared Content-Length up to 64 MiB
+// does not match the body that arrived.
+var bytes = await section.ReadAsBytesStrictAsync(maxDeclaredLength: 64 * 1024 * 1024);
+```
+<sup><a href='/src/Tests/Usage.cs#L62-L68' title='Snippet source file'>snippet source</a> | <a href='#snippet-readBinaryStrict' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 
 ### Limits
 
@@ -107,7 +119,7 @@ await writer.WritePart("application/octet-stream", new byte[] {1, 2, 3});
 
 await writer.Terminate();
 ```
-<sup><a href='/src/Tests/Usage.cs#L57-L72' title='Snippet source file'>snippet source</a> | <a href='#snippet-write' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Tests/Usage.cs#L81-L96' title='Snippet source file'>snippet source</a> | <a href='#snippet-write' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The delimiter's leading CRLF is written by the *next* part, or by the terminator - which is what keeps every part's content byte-exact, since a reader strips that CRLF as part of the delimiter.
@@ -127,7 +139,7 @@ await writer.WritePart("application/octet-stream", source, source.Length);
 
 await writer.Terminate();
 ```
-<sup><a href='/src/Tests/Usage.cs#L91-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-writeLarge' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Tests/Usage.cs#L115-L125' title='Snippet source file'>snippet source</a> | <a href='#snippet-writeLarge' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 `OpenPart(contentType, contentLength)` is the same thing split in two, for a caller who wants to write the content itself rather than hand over a `Stream`. The length is advisory in both - nothing verifies that exactly that many bytes are written.

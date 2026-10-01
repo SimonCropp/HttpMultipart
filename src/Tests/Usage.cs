@@ -50,6 +50,30 @@ public class Usage
     }
 
     [Test]
+    public async Task ReadBinaryStrict()
+    {
+        var response = MultipartResponse();
+
+        response.Content.TryGetMultipartBoundary("multipart/mixed", out var boundary);
+        await using var body = await response.Content.ReadAsStreamAsync();
+        using var reader = new MultipartReader(boundary!, body);
+        while (await reader.ReadNextSectionAsync() is {} section)
+        {
+            #region readBinaryStrict
+
+            // Throws InvalidDataException when a declared Content-Length up to 64 MiB
+            // does not match the body that arrived.
+            var bytes = await section.ReadAsBytesStrictAsync(maxDeclaredLength: 64 * 1024 * 1024);
+
+            #endregion
+
+            Handle(section.ContentType, bytes);
+        }
+
+        await Assert.That(handled).Count().IsEqualTo(2);
+    }
+
+    [Test]
     public async Task Write()
     {
         var stream = new MemoryStream();
