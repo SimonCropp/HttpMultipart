@@ -55,7 +55,7 @@ public class BufferedReadStreamTests
         var stream = MakeStream(new string('a', 100) + "\r\n", bufferSize: 16);
 
         var exception = Assert.ThrowsExactly<InvalidDataException>(() => stream.ReadLine(lengthLimit: 40));
-        await Assert.That(exception!.Message).IsEqualTo("Line length limit 40 exceeded.");
+        await Assert.That(exception.Message).IsEqualTo("Line length limit 40 exceeded.");
     }
 
     [Test]
