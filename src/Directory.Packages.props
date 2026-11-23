@@ -4,8 +4,8 @@
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="MarkdownSnippets.MsBuild" Version="28.5.1" />
-    <PackageVersion Include="ProjectDefaults" Version="1.0.187" />
-    <PackageVersion Include="TUnit" Version="1.78.0" />
+    <PackageVersion Include="MarkdownSnippets.MsBuild" Version="30.0.1" />
+    <PackageVersion Include="ProjectDefaults" Version="1.0.191" />
+    <PackageVersion Include="TUnit" Version="1.87.12" />
   </ItemGroup>
 </Project>
